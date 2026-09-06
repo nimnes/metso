@@ -6,7 +6,7 @@ export type TampereBranch = {
 export const TAMPERE_CITY_CODE = '1/Piki/1/'
 
 export const TAMPERE_BRANCHES: TampereBranch[] = [
-  { code: 'holdings:1 001 piki', label: 'Main Library Metso' },
+  { code: 'holdings:1 001 piki', label: 'Main library Metso' },
   { code: 'holdings:1 021 piki', label: 'Hervanta' },
   { code: 'holdings:1 007 piki', label: 'Härmälä' },
   { code: 'holdings:1 006 piki', label: 'Kaukajärvi' },

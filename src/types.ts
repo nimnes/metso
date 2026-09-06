@@ -3,8 +3,10 @@ export type SortMode = 'relevance' | 'rating' | 'newest' | 'oldest' | 'title'
 export type BookRating = {
   value: number
   count: number
-  source: 'openlibrary'
+  source: 'openlibrary' | 'hardcover'
 }
+
+export type RatingSource = BookRating['source']
 
 export type LibraryPresence = {
   branch: string
@@ -23,13 +25,17 @@ export type Book = {
   formats: string[]
   coverUrl?: string
   coverUrls: string[]
+  ratings?: Partial<Record<RatingSource, BookRating>>
   rating?: BookRating
   branches: LibraryPresence[]
   pikiUrl: string
 }
 
 export type BookDetails = Book & {
+  classifications: string[]
   description?: string
+  edition?: string
+  genres: string[]
   contents: string[]
   physicalDescriptions: string[]
   publicationInfo: string[]
@@ -40,8 +46,9 @@ export type BookDetails = Book & {
 
 export type BookSearchFilters = {
   query: string
-  language: string
-  branchCode: string
+  languageCodes: string[]
+  genreValues: string[]
+  branchCodes: string[]
   minRating: number
   sort: SortMode
 }

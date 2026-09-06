@@ -121,13 +121,27 @@ async function getRating(workKey: string): Promise<BookRating | undefined> {
 
 function mergeEnrichment(book: Book, enrichment: Partial<Book>): Book {
   const coverUrls = unique([...(book.coverUrls ?? []), book.coverUrl, ...(enrichment.coverUrls ?? []), enrichment.coverUrl])
+  const openLibraryRating = enrichment.ratings?.openlibrary ?? enrichment.rating
 
   return {
     ...book,
-    rating: enrichment.rating ?? book.rating,
+    ratings: {
+      ...book.ratings,
+      ...enrichment.ratings,
+      ...(openLibraryRating ? { openlibrary: openLibraryRating } : {}),
+    },
+    rating: chooseBestRating({
+      ...book.ratings,
+      ...enrichment.ratings,
+      ...(openLibraryRating ? { openlibrary: openLibraryRating } : {}),
+    }),
     coverUrl: coverUrls[0],
     coverUrls,
   }
+}
+
+function chooseBestRating(ratings?: Book['ratings']): BookRating | undefined {
+  return ratings?.openlibrary ?? ratings?.hardcover
 }
 
 function unique<T>(values: Array<T | undefined>): T[] {

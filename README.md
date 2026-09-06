@@ -67,9 +67,9 @@ Also investigate whether Finna exposes:
 
 PIKI/Finna should be the authoritative source for availability.
 
-## 2. Open Library
+## 2. Open Library and Hardcover
 
-Use Open Library as an enrichment source.
+Use Open Library and Hardcover as parallel rating enrichment sources. Open Library remains the primary description/metadata enrichment source, while Hardcover can add a second rating and cover fallback.
 
 Primary matching should be by ISBN.
 
@@ -81,15 +81,15 @@ PIKI record
 → parent Work
 → rating / additional metadata
 
-Fallback if ISBN fails:
+Fallbacks:
 
-* normalized title
-* author
-* possibly publication year
+* Open Library normalized title + author search
+* Hardcover ISBN search for an additional rating
+* Hardcover title search when ISBN lookup is not possible
 
 Open Library supports Russian-language books and Cyrillic metadata, so the app should support Finnish, English and Russian books.
 
-Important caveat: Open Library rating coverage is much weaker than Goodreads.
+Important caveat: Open Library and Hardcover rating coverage is still weaker than Goodreads.
 
 Do not assume every book has a useful rating.
 
@@ -101,8 +101,9 @@ Do not build the app around Goodreads scraping.
 
 For MVP:
 
-* use Open Library rating when available
-* display rating source explicitly, e.g. "Open Library"
+* display Open Library and Hardcover rating slots side by side
+* show `--` for a source when that source has no rating
+* display rating source with compact source marks, e.g. `OL` or `H`
 * allow books without ratings
 
 Potential future task: investigate another legitimate free ratings source with better coverage.
@@ -199,11 +200,11 @@ Avoid unnecessary frameworks/services.
 
 Client-side caching:
 
-* localStorage or IndexedDB for Open Library enrichment/cache
-* cache ISBN → Open Library work/rating/cover mapping
+* localStorage or IndexedDB for Open Library / Hardcover enrichment cache
+* cache ISBN → rating/cover mapping
 * avoid hammering external APIs
 
-The application should remain usable if Open Library is temporarily unavailable; PIKI search/availability should still work.
+The application should remain usable if Open Library or Hardcover is temporarily unavailable; PIKI search/availability should still work.
 
 ## API handling
 
@@ -213,6 +214,7 @@ Suggested modules:
 
 * `finna.ts`
 * `openLibrary.ts`
+* `hardcover.ts`
 * `bookNormalizer.ts`
 * `availability.ts`
 
@@ -239,7 +241,7 @@ type Book = {
   rating?: {
     value: number
     count?: number
-    source: "openlibrary"
+    source: "openlibrary" | "hardcover"
   }
 
   availability: LibraryAvailability[]
@@ -316,6 +318,19 @@ The finished MVP should be deployable with:
 
 Target ongoing cost: €0/month.
 
+## Account and reservations boundary
+
+Loan status, current loans, reservations and favourites are account-sensitive PIKI features. The app should not collect or store PIKI library-card numbers or PIN codes in the static frontend.
+
+Recommended phase split:
+
+* Phase 1: keep discovery in this app, show Tampere catalogue presence from public Finna data, and link users to the official PIKI record page for live availability, login and reservations.
+* Phase 2: add a Cloudflare Worker only if there is an approved PIKI/Finna authentication path for third-party clients, or if PIKI provides a stable endpoint intended for availability/reservation integration.
+
+Current safe handoff link:
+
+* Book page in PIKI: `${recordPage}`
+
 ## MVP implementation notes
 
 This repository now contains a React + TypeScript + Vite static app. It is designed for Cloudflare Pages or GitHub Pages and does not require a backend, database, or API secret for the current public catalogue/rating flow.
@@ -327,13 +342,30 @@ npm install
 npm run dev
 npm run build
 npm run lint
+npm run build && npx wrangler pages dev dist
 ```
 
 For Cloudflare Pages:
 
 * Build command: `npm run build`
 * Output directory: `dist`
-* Environment variables: none required for the MVP
+* Environment variables:
+  * `HARDCOVER_API_TOKEN`: secret Hardcover API token for server-side Hardcover enrichment
+
+Hardcover notes:
+
+* Hardcover is queried independently from Open Library so both ratings can be shown when available.
+* Hardcover requests go through the Cloudflare Pages Function at `/api/hardcover`.
+* The Hardcover token must be stored as a Cloudflare secret, not as a Vite `VITE_` browser variable.
+* For local Cloudflare Pages Functions development, put `HARDCOVER_API_TOKEN="..."` in `.dev.vars` and do not commit that file.
+* Plain tokens and `Bearer ...` values are both accepted.
+* A `204 No Content` response from `/api/hardcover` means the app is silently falling back because Hardcover could not provide enrichment. To see why locally, add `debug=1` to the request:
+
+```bash
+curl "http://127.0.0.1:8788/api/hardcover?isbn=9780141439600&title=Pride%20and%20Prejudice&debug=1"
+```
+
+`{"reason":"missing-token"}` means Wrangler is not seeing `HARDCOVER_API_TOKEN`. `{"reason":"no-match"}` means the token is loaded, but Hardcover did not find a matching book.
 
 ## Live API findings as of 2026-08-31
 
@@ -343,6 +375,7 @@ Sources checked:
 * Finna OpenAPI schema: https://api.finna.fi/api/v1/?openapi
 * PIKI search help: https://piki.finna.fi/Content/info_search?lng=en-gb
 * Open Library ISBN and rating endpoints: `https://openlibrary.org/isbn/{isbn}.json`, `https://openlibrary.org/works/{workId}/ratings.json`
+* Hardcover GraphQL endpoint: `https://api.hardcover.app/v1/graphql`
 
 Findings:
 
@@ -355,7 +388,7 @@ Findings:
 7. Finna cover URLs are returned as relative `images` paths. The app prefixes them with `https://piki.finna.fi`.
 8. PIKI deep links can be built from `recordPage`, for example `https://piki.finna.fi/Record/piki.4440048`.
 9. Finna states that CORS is supported for all origins. The API is read-only and not intended for large result-set downloads.
-10. Open Library rating enrichment works best by ISBN: edition lookup -> parent work -> `/ratings.json`. Rating coverage is inconsistent, so the UI treats ratings as optional.
+10. Open Library rating enrichment works best by ISBN: edition lookup -> parent work -> `/ratings.json`. Hardcover can provide `rating` and `ratings_count` for some records as a second rating source. Rating coverage is inconsistent, so the UI treats ratings as optional.
 
 Important product implication:
 
@@ -374,3 +407,11 @@ District library options use indexed PIKI holding codes such as:
 * `holdings_txtP_mv:"1 013 piki"` for Tesoma
 
 These holding-code filters are useful for narrowing the catalogue, but they are still not the same as live copy-level availability. Exact live branch/copy status remains a phase 2 topic.
+
+### Account/API findings as of 2026-09-01
+
+* The live Finna OpenAPI schema describes the REST API as a read-only interface and exposes public paths for `/search`, `/record`, `/authority/search` and `/authority/record`.
+* The documented Finna library-card authentication endpoint exists in older/current documentation, but live requests to `https://api.finna.fi/api/v1/auth/getLoginTargets` and `https://piki.finna.fi/api/v1/auth/getLoginTargets` returned `Permission denied` during testing.
+* Finna help says logged-in users can browse account information, renew loans, reserve library material and create favourites, but this is via Finna/PIKI account flows.
+* Finna reservation help says reservations require being logged in and having a connected library card.
+* PIKI record pages expose a Holdings page, but the public REST API does not expose the same copy-level status as a stable JSON field.

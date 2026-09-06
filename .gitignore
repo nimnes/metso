@@ -1,4 +1,7 @@
 dist
 node_modules
 .npm-cache
+.wrangler
 *.local
+.dev.vars*
+.env*

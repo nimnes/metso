@@ -1,8 +1,10 @@
 import { TAMPERE_CITY_CODE, TAMPERE_HOLDING_LABELS } from '../data/tampereBranches'
+import { GENRE_OPTIONS } from '../data/genreOptions'
 import type { Book, BookDetails, BookSearchFilters, LibraryPresence } from '../types'
 
 const FINNA_API_BASE = 'https://api.finna.fi/v1'
 const PIKI_BASE = 'https://piki.finna.fi'
+export const FINNA_PAGE_SIZE = 20
 
 type FinnaTranslatedField = {
   value: string
@@ -32,6 +34,10 @@ type FinnaRecord = {
   publishers?: string[]
   series?: Array<{ name?: string; additional?: string }>
   rawData?: {
+    classification_txt_mv?: string[]
+    edition?: string
+    genre?: string[]
+    genre_facet?: string[]
     holdings_txtP_mv?: string[]
   }
 }
@@ -70,23 +76,32 @@ const DETAIL_FIELDS = [
   'series',
 ]
 
-export async function searchFinna(filters: BookSearchFilters): Promise<{ total: number; books: Book[] }> {
+export async function searchFinna(filters: BookSearchFilters, page = 1): Promise<{ total: number; books: Book[] }> {
   const params = new URLSearchParams()
   params.set('lookfor', filters.query.trim() || '*')
   params.set('type', 'AllFields')
   params.set('sort', sortToFinna(filters.sort))
-  params.set('limit', '24')
+  params.set('limit', String(FINNA_PAGE_SIZE))
+  params.set('page', String(page))
 
   REQUESTED_FIELDS.forEach((field) => params.append('field[]', field))
   params.append('filter[]', `building:"${TAMPERE_CITY_CODE}"`)
-  if (filters.branchCode.startsWith('holdings:')) {
-    params.append('filter[]', `holdings_txtP_mv:"${filters.branchCode.replace('holdings:', '')}"`)
-  }
+  filters.branchCodes
+    .filter((branchCode) => branchCode.startsWith('holdings:'))
+    .forEach((branchCode) => {
+      params.append('filter[]', `~holdings_txtP_mv:"${branchCode.replace('holdings:', '')}"`)
+    })
   params.append('filter[]', 'format:"0/Book/"')
 
-  if (filters.language) {
-    params.append('filter[]', `language:"${filters.language}"`)
-  }
+  filters.languageCodes.forEach((language) => {
+    params.append('filter[]', `~language:"${language}"`)
+  })
+
+  filters.genreValues
+    .flatMap((genreValue) => GENRE_OPTIONS.find((option) => option.value === genreValue)?.finnaValues ?? [])
+    .forEach((value) => {
+      params.append('filter[]', `~genre_facet:"${value}"`)
+    })
 
   const response = await fetch(`${FINNA_API_BASE}/search?${params.toString()}`)
   if (!response.ok) {
@@ -151,16 +166,31 @@ function normalizeFinnaBookDetails(record: FinnaRecord): BookDetails {
 
   return {
     ...book,
+    classifications: normalizeClassifications(record.rawData?.classification_txt_mv),
     description: cleanText(record.summary?.[0]),
+    edition: cleanText(record.rawData?.edition),
+    genres: uniqueNormalized([...(record.rawData?.genre_facet ?? []), ...(record.rawData?.genre ?? [])].map(cleanText)).filter(Boolean),
     contents: (record.contents ?? []).map(cleanText).filter(Boolean),
     physicalDescriptions: record.physicalDescriptions ?? [],
     publicationInfo: record.publicationInfo ?? [],
     publishers: record.publishers ?? [],
     series: (record.series ?? [])
-      .map((series) => [series.name, series.additional].filter(Boolean).join(' '))
-      .filter(Boolean),
+      .map(normalizeSeries)
+      .filter(Boolean)
+      .filter(uniqueByNormalizedValue),
     catalogueLibraries: normalizeCatalogueLibraries(record),
   }
+}
+
+function normalizeClassifications(classifications?: string[]): string[] {
+  return unique(
+    (classifications ?? []).map((classification) => classification.replace(/^ykl\s+/i, '').trim()).filter(Boolean),
+  )
+}
+
+function normalizeSeries(series: { name?: string; additional?: string }): string {
+  const value = [series.name, series.additional].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
+  return value.replace(/\s+\]/g, ']').replace(/\s+([.,;:])/g, '$1')
 }
 
 function normalizeAuthors(record: FinnaRecord): string[] {
@@ -235,4 +265,20 @@ function sortToFinna(sort: string): string {
 
 function unique<T>(values: T[]): T[] {
   return Array.from(new Set(values.filter(Boolean)))
+}
+
+function uniqueNormalized(values: string[]): string[] {
+  const seen = new Set<string>()
+
+  return values.filter((value) => {
+    const normalized = value.toLocaleLowerCase().trim()
+    if (!normalized || seen.has(normalized)) return false
+    seen.add(normalized)
+    return true
+  })
+}
+
+function uniqueByNormalizedValue(value: string, index: number, values: string[]): boolean {
+  const normalized = value.toLocaleLowerCase().replace(/[.,;:\s]+$/g, '')
+  return values.findIndex((item) => item.toLocaleLowerCase().replace(/[.,;:\s]+$/g, '') === normalized) === index
 }

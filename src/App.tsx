@@ -1,25 +1,80 @@
-import { useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { BookOpen, Calendar, ExternalLink, Filter, Hash, LibraryBig, Search, SlidersHorizontal, Star, X } from 'lucide-react'
-import { getFinnaBookDetails, searchFinna } from './api/finna'
+import {
+  BookOpen,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ExternalLink,
+  LibraryBig,
+  Search,
+  X,
+} from 'lucide-react'
+import { FINNA_PAGE_SIZE, getFinnaBookDetails, searchFinna } from './api/finna'
+import { enrichBooksWithHardcover, getHardcoverDescription } from './api/hardcover'
 import { enrichBooksWithOpenLibrary, getOpenLibraryDescription } from './api/openLibrary'
-import { LANGUAGE_LABELS, LANGUAGE_OPTIONS, TAMPERE_BRANCHES } from './data/tampereBranches'
-import type { Book, BookDetails, BookSearchFilters, SearchState, SortMode } from './types'
+import { getPikiDescription } from './api/pikiDescription'
+import { GENRE_OPTIONS } from './data/genreOptions'
+import { LANGUAGE_OPTIONS, TAMPERE_BRANCHES } from './data/tampereBranches'
+import { getStoredUiLanguage, translations, UI_LANGUAGE_STORAGE_KEY, UI_LANGUAGES } from './i18n'
+import type { UiLanguage } from './i18n'
+import type { Book, BookDetails, BookRating, BookSearchFilters, LibraryPresence, RatingSource, SearchState, SortMode } from './types'
 
 const initialFilters: BookSearchFilters = {
   query: 'mestar* margarita',
-  language: '',
-  branchCode: '',
+  languageCodes: [],
+  genreValues: [],
+  branchCodes: [],
   minRating: 0,
   sort: 'relevance',
 }
 
+type FilterSectionKey = 'language' | 'genre' | 'library' | 'rating' | 'sort'
+
+const GENERIC_SEARCH_ERROR = 'metso:search-failed'
+const GENERIC_DETAILS_ERROR = 'metso:details-failed'
+const FILTER_STORAGE_KEY = 'metso-search-filters'
+
 function App() {
-  const [filters, setFilters] = useState<BookSearchFilters>(initialFilters)
-  const [draftQuery, setDraftQuery] = useState(initialFilters.query)
+  const [filters, setFilters] = useState<BookSearchFilters>(getStoredFilters)
+  const [draftQuery, setDraftQuery] = useState(filters.query)
+  const [currentPage, setCurrentPage] = useState(1)
   const [state, setState] = useState<SearchState>({ loading: true, total: 0, books: [] })
   const [selectedBook, setSelectedBook] = useState<Book | undefined>()
   const [detailState, setDetailState] = useState<{ loading: boolean; error?: string; details?: BookDetails }>({ loading: false })
+  const [uiLanguage, setUiLanguage] = useState(getStoredUiLanguage)
+  const resultsTopRef = useRef<HTMLDivElement | null>(null)
+  const [openFilterSections, setOpenFilterSections] = useState<Record<FilterSectionKey, boolean>>({
+    language: true,
+    genre: true,
+    library: true,
+    rating: true,
+    sort: true,
+  })
+  const t = translations[uiLanguage]
+  const catalogueSort = filters.sort === 'rating' ? 'relevance' : filters.sort
+  const catalogueFilters = useMemo<BookSearchFilters>(
+    () => ({
+      query: filters.query,
+      languageCodes: filters.languageCodes,
+      genreValues: filters.genreValues,
+      branchCodes: filters.branchCodes,
+      minRating: 0,
+      sort: catalogueSort,
+    }),
+    [catalogueSort, filters.branchCodes, filters.genreValues, filters.languageCodes, filters.query],
+  )
+
+  useEffect(() => {
+    window.localStorage.setItem(UI_LANGUAGE_STORAGE_KEY, uiLanguage)
+    document.documentElement.lang = uiLanguage
+  }, [uiLanguage])
+
+  useEffect(() => {
+    window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters))
+  }, [filters])
 
   useEffect(() => {
     let cancelled = false
@@ -27,11 +82,11 @@ function App() {
     async function runSearch() {
       setState((current) => ({ ...current, loading: true, error: undefined }))
       try {
-        const result = await searchFinna(filters)
+        const result = await searchFinna(catalogueFilters, currentPage)
         if (cancelled) return
         setState({ loading: false, total: result.total, books: result.books })
 
-        const enriched = await enrichBooksWithOpenLibrary(result.books)
+        const enriched = await enrichBooksWithHardcover(await enrichBooksWithOpenLibrary(result.books))
         if (!cancelled) {
           setState({ loading: false, total: result.total, books: enriched })
         }
@@ -41,7 +96,7 @@ function App() {
             loading: false,
             total: 0,
             books: [],
-            error: error instanceof Error ? error.message : 'Search failed',
+            error: error instanceof Error ? error.message : GENERIC_SEARCH_ERROR,
           })
         }
       }
@@ -51,7 +106,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [filters])
+  }, [catalogueFilters, currentPage])
 
   useEffect(() => {
     if (!selectedBook) return
@@ -63,16 +118,33 @@ function App() {
       setDetailState({ loading: true })
       try {
         const details = await getFinnaBookDetails(activeBook.finnaId)
-        const description = details.description || (await getOptionalOpenLibraryDescription(details.isbns[0]))
+        const description =
+          details.description ||
+          (await getOptionalPikiDescription(details.isbns[0])) ||
+          (await getOptionalOpenLibraryDescription(details.isbns[0])) ||
+          (await getOptionalHardcoverDescription(details))
         if (!cancelled) {
-          setDetailState({ loading: false, details: { ...activeBook, ...details, rating: activeBook.rating, description } })
+          setDetailState({
+            loading: false,
+            details: { ...activeBook, ...details, ratings: activeBook.ratings, rating: activeBook.rating, description },
+          })
         }
       } catch (error) {
         if (!cancelled) {
           setDetailState({
             loading: false,
-            error: error instanceof Error ? error.message : 'Book details could not be loaded',
-            details: { ...activeBook, contents: [], physicalDescriptions: [], publicationInfo: [], publishers: [], series: [], catalogueLibraries: activeBook.branches },
+            error: error instanceof Error ? error.message : GENERIC_DETAILS_ERROR,
+            details: {
+              ...activeBook,
+              classifications: [],
+              contents: [],
+              genres: [],
+              physicalDescriptions: [],
+              publicationInfo: [],
+              publishers: [],
+              series: [],
+              catalogueLibraries: activeBook.branches,
+            },
           })
         }
       }
@@ -95,32 +167,112 @@ function App() {
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [selectedBook])
 
-  const visibleBooks = useMemo(() => {
-    const filtered = state.books.filter((book) => (filters.minRating ? (book.rating?.value ?? 0) >= filters.minRating : true))
-    if (filters.sort !== 'rating') return filtered
-    return [...filtered].sort((a, b) => (b.rating?.value ?? 0) - (a.rating?.value ?? 0))
-  }, [filters.minRating, filters.sort, state.books])
+  const displayedBooks = useMemo(() => {
+    if (filters.sort !== 'rating') return state.books
+    return [...state.books].sort((a, b) => (getBestRating(b)?.value ?? 0) - (getBestRating(a)?.value ?? 0))
+  }, [filters.sort, state.books])
+
+  const visibleBookCount = useMemo(
+    () => displayedBooks.filter((book) => passesRatingFilter(book, filters.minRating)).length,
+    [displayedBooks, filters.minRating],
+  )
+  const totalPages = Math.max(Math.ceil(state.total / FINNA_PAGE_SIZE), 1)
+
+  const changePage = useCallback((page: number) => {
+    setCurrentPage(page)
+    resultsTopRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [])
+
+  useEffect(() => {
+    if (!state.loading && currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, state.loading, totalPages])
 
   function submitSearch(event: React.FormEvent) {
     event.preventDefault()
+    setCurrentPage(1)
     setFilters((current) => ({ ...current, query: draftQuery.trim() }))
   }
 
   function updateFilter<K extends keyof BookSearchFilters>(key: K, value: BookSearchFilters[K]) {
+    if (key !== 'minRating') {
+      setCurrentPage(1)
+    }
     setFilters((current) => ({ ...current, [key]: value }))
   }
+
+  function updateRatingFilter(event: React.FormEvent<HTMLInputElement>) {
+    updateFilter('minRating', Number(event.currentTarget.value))
+  }
+
+  function updateMultiFilter(key: 'branchCodes' | 'genreValues' | 'languageCodes', value: string, optionCount: number) {
+    setCurrentPage(1)
+    setFilters((current) => {
+      if (!value) return { ...current, [key]: [] }
+
+      const currentValues = current[key]
+      const selected = currentValues.includes(value) ? currentValues.filter((selectedValue) => selectedValue !== value) : [...currentValues, value]
+
+      return {
+        ...current,
+        [key]: selected.length === optionCount ? [] : selected,
+      }
+    })
+  }
+
+  function toggleFilterSection(section: FilterSectionKey) {
+    setOpenFilterSections((current) => ({ ...current, [section]: !current[section] }))
+  }
+
+  const selectBook = useCallback((book: Book) => {
+    setSelectedBook(book)
+  }, [])
+
+  const searchAuthor = useCallback((author: string) => {
+    setDraftQuery(author)
+    setCurrentPage(1)
+    setFilters((current) => ({ ...current, query: author }))
+    setSelectedBook(undefined)
+  }, [])
+
+  const searchLibrary = useCallback((library: LibraryPresence) => {
+    const matchingBranch = TAMPERE_BRANCHES.find((branch) => branch.code === `holdings:${library.code}` || branch.code === library.code)
+    if (!matchingBranch) return
+
+    setCurrentPage(1)
+    setFilters((current) => ({ ...current, branchCodes: [matchingBranch.code] }))
+    setSelectedBook(undefined)
+  }, [])
+
+  const languageOptions = LANGUAGE_OPTIONS.filter((option) => option.value).map((option) => ({
+    value: option.value,
+    label: getBookLanguageLabel(option.value, uiLanguage),
+  }))
+  const genreOptions = GENRE_OPTIONS.map((option) => ({
+    value: option.value,
+    label: option.labels[uiLanguage],
+  }))
+  const libraryOptions = TAMPERE_BRANCHES.map((branch) => ({
+    value: branch.code,
+    label: getLibraryDisplayName(branch.label, uiLanguage),
+  }))
 
   return (
     <main className="shell">
       <section className="search-panel">
-        <div className="brand">
-          <div className="brand-mark">
-            <LibraryBig size={26} aria-hidden="true" />
+        <div className="top-row">
+          <div className="brand">
+            <div className="brand-mark">
+              <LibraryBig size={26} aria-hidden="true" />
+            </div>
+            <div>
+              <p>Metso</p>
+              <h1>{t.appTitle}</h1>
+            </div>
           </div>
-          <div>
-            <p>Metso</p>
-            <h1>Tampere library book finder</h1>
-          </div>
+
+          <LanguageSwitcher currentLanguage={uiLanguage} onChange={setUiLanguage} />
         </div>
 
         <form className="search-row" onSubmit={submitSearch}>
@@ -129,91 +281,120 @@ function App() {
             <input
               value={draftQuery}
               onChange={(event) => setDraftQuery(event.target.value)}
-              placeholder="Search title, author, subject or ISBN"
-              aria-label="Search books"
+              placeholder={t.searchPlaceholder}
+              aria-label={t.searchAriaLabel}
             />
           </label>
           <button type="submit">
             <Search size={18} aria-hidden="true" />
-            Search
+            {t.searchButton}
           </button>
         </form>
 
-        <div className="filters" aria-label="Search filters">
-          <label>
-            <Filter size={16} aria-hidden="true" />
-            <span>Language</span>
-            <select value={filters.language} onChange={(event) => updateFilter('language', event.target.value)}>
-              {LANGUAGE_OPTIONS.map((option) => (
-                <option value={option.value} key={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+      </section>
 
-          <label>
-            <LibraryBig size={16} aria-hidden="true" />
-            <span>Library</span>
-            <select value={filters.branchCode} onChange={(event) => updateFilter('branchCode', event.target.value)}>
-              <option value="">All Tampere city libraries</option>
-              {TAMPERE_BRANCHES.map((branch) => (
-                <option value={branch.code} key={branch.code}>
-                  {branch.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <Star size={16} aria-hidden="true" />
-            <span>Rating</span>
-            <input
-              type="range"
-              min="0"
-              max="5"
-              step="0.5"
-              value={filters.minRating}
-              onChange={(event) => updateFilter('minRating', Number(event.target.value))}
+      <div className="results-layout">
+        <aside className="filter-sidebar" aria-label={t.filtersAriaLabel}>
+          <FilterPanelSection open={openFilterSections.language} title={t.languageFilter} onToggle={() => toggleFilterSection('language')}>
+            <FilterCheckboxList
+              allLabel={t.all}
+              options={languageOptions}
+              selectedValues={filters.languageCodes}
+              onToggleValue={(value, optionCount) => updateMultiFilter('languageCodes', value, optionCount)}
             />
-            <strong>{filters.minRating ? `${filters.minRating}+` : 'Any'}</strong>
-          </label>
+          </FilterPanelSection>
 
-          <label>
-            <SlidersHorizontal size={16} aria-hidden="true" />
-            <span>Sort</span>
-            <select value={filters.sort} onChange={(event) => updateFilter('sort', event.target.value as SortMode)}>
-              <option value="relevance">Relevance</option>
-              <option value="rating">Rating</option>
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="title">Title</option>
+          <FilterPanelSection open={openFilterSections.genre} title={t.genreFilter} onToggle={() => toggleFilterSection('genre')}>
+            <FilterCheckboxList
+              allLabel={t.all}
+              options={genreOptions}
+              selectedValues={filters.genreValues}
+              onToggleValue={(value, optionCount) => updateMultiFilter('genreValues', value, optionCount)}
+            />
+          </FilterPanelSection>
+
+          <FilterPanelSection open={openFilterSections.library} title={t.libraryFilter} onToggle={() => toggleFilterSection('library')}>
+            <FilterCheckboxList
+              allLabel={t.all}
+              options={libraryOptions}
+              selectedValues={filters.branchCodes}
+              onToggleValue={(value, optionCount) => updateMultiFilter('branchCodes', value, optionCount)}
+            />
+          </FilterPanelSection>
+
+          <FilterPanelSection open={openFilterSections.rating} title={t.ratingFilter} onToggle={() => toggleFilterSection('rating')}>
+            <label className="rating-filter">
+              <input
+                type="range"
+                min="0"
+                max="5"
+                step="0.5"
+                value={filters.minRating}
+                onChange={updateRatingFilter}
+                onInput={updateRatingFilter}
+              />
+              <strong>{filters.minRating ? `${filters.minRating}+` : t.any}</strong>
+            </label>
+          </FilterPanelSection>
+
+          <FilterPanelSection open={openFilterSections.sort} title={t.sortFilter} onToggle={() => toggleFilterSection('sort')}>
+            <select className="sort-select" value={filters.sort} onChange={(event) => updateFilter('sort', event.target.value as SortMode)}>
+              <option value="relevance">{t.sortRelevance}</option>
+              <option value="rating">{t.sortRating}</option>
+              <option value="newest">{t.sortNewest}</option>
+              <option value="oldest">{t.sortOldest}</option>
+              <option value="title">{t.sortTitle}</option>
             </select>
-          </label>
+          </FilterPanelSection>
+        </aside>
+
+        <div className="results-main">
+          <div ref={resultsTopRef} />
+          <section className="status-bar" aria-live="polite">
+            <span>{state.loading ? t.searching : t.resultCount(visibleBookCount, state.total)}</span>
+          </section>
+
+          {state.error ? (
+            <div className="notice">
+              {t.searchErrorPrefix} {translateError(state.error, uiLanguage)}
+            </div>
+          ) : null}
+
+          <section className="book-grid">
+            {displayedBooks.map((book) => (
+              <BookCard book={book} filteredOut={!passesRatingFilter(book, filters.minRating)} key={book.id} onSelect={selectBook} uiLanguage={uiLanguage} />
+            ))}
+          </section>
+
+          {!state.error && state.total > FINNA_PAGE_SIZE ? (
+            <Pagination
+              currentPage={currentPage}
+              disabled={state.loading}
+              totalPages={totalPages}
+              onPageChange={changePage}
+              uiLanguage={uiLanguage}
+            />
+          ) : null}
+
+          {!state.loading && !state.error && visibleBookCount === 0 ? (
+            <div className="empty">
+              <BookOpen size={32} aria-hidden="true" />
+              <p>{t.noMatches}</p>
+            </div>
+          ) : null}
         </div>
-      </section>
+      </div>
 
-      <section className="status-bar" aria-live="polite">
-        <span>{state.loading ? 'Searching PIKI and Open Library...' : `${visibleBooks.length} shown from ${state.total} PIKI matches`}</span>
-        <span>Catalogue presence is from Finna; live loan status is not exposed by this public endpoint.</span>
-      </section>
-
-      {state.error ? <div className="notice">Could not search right now: {state.error}</div> : null}
-
-      <section className="book-grid">
-        {visibleBooks.map((book) => (
-          <BookCard book={book} key={book.id} onSelect={setSelectedBook} />
-        ))}
-      </section>
-
-      {!state.loading && !state.error && visibleBooks.length === 0 ? (
-        <div className="empty">
-          <BookOpen size={32} aria-hidden="true" />
-          <p>No matching books found.</p>
-        </div>
+      {selectedBook ? (
+        <BookDetailsPanel
+          book={selectedBook}
+          detailState={detailState}
+          onClose={() => setSelectedBook(undefined)}
+          onSearchAuthor={searchAuthor}
+          onSearchLibrary={searchLibrary}
+          uiLanguage={uiLanguage}
+        />
       ) : null}
-
-      {selectedBook ? <BookDetailsPanel book={selectedBook} detailState={detailState} onClose={() => setSelectedBook(undefined)} /> : null}
     </main>
   )
 }
@@ -226,7 +407,138 @@ async function getOptionalOpenLibraryDescription(isbn?: string): Promise<string 
   }
 }
 
-function BookCover({ book, variant }: { book: Book; variant: 'card' | 'detail' }) {
+async function getOptionalHardcoverDescription(book: Pick<Book, 'authors' | 'isbns' | 'publicationYear' | 'title'>): Promise<string | undefined> {
+  try {
+    return await getHardcoverDescription(book)
+  } catch {
+    return undefined
+  }
+}
+
+async function getOptionalPikiDescription(isbn?: string): Promise<string | undefined> {
+  try {
+    return await getPikiDescription(isbn)
+  } catch {
+    return undefined
+  }
+}
+
+function LanguageSwitcher({ currentLanguage, onChange }: { currentLanguage: UiLanguage; onChange: (language: UiLanguage) => void }) {
+  return (
+    <div className="ui-language" aria-label={translations[currentLanguage].uiLanguageLabel}>
+      {UI_LANGUAGES.map((language) => (
+        <button
+          className="flag-button"
+          type="button"
+          aria-label={language.label}
+          aria-pressed={currentLanguage === language.value}
+          key={language.value}
+          onClick={() => onChange(language.value)}
+          title={language.label}
+        >
+          <span aria-hidden="true">{language.flag}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+type MultiSelectOption = {
+  value: string
+  label: string
+}
+
+function FilterPanelSection({
+  children,
+  open,
+  title,
+  onToggle,
+}: {
+  children: ReactNode
+  open: boolean
+  title: string
+  onToggle: () => void
+}) {
+  return (
+    <section className="filter-section">
+      <button className="filter-section-title" type="button" aria-expanded={open} onClick={onToggle}>
+        <ChevronDown size={18} aria-hidden="true" />
+        <span>{title}</span>
+      </button>
+      {open ? <div className="filter-section-body">{children}</div> : null}
+    </section>
+  )
+}
+
+function FilterCheckboxList({
+  allLabel,
+  selectedValues,
+  options,
+  onToggleValue,
+}: {
+  allLabel: string
+  selectedValues: string[]
+  options: MultiSelectOption[]
+  onToggleValue: (value: string, optionCount: number) => void
+}) {
+  const allSelected = selectedValues.length === 0
+
+  return (
+    <div className="filter-options">
+      <label className="filter-option">
+        <input type="checkbox" checked={allSelected} onChange={() => onToggleValue('', options.length)} />
+        <span>{allLabel}</span>
+      </label>
+
+      {options.map((option) => (
+        <label className="filter-option" key={option.value}>
+          <input type="checkbox" checked={selectedValues.includes(option.value)} onChange={() => onToggleValue(option.value, options.length)} />
+          <span>{option.label}</span>
+        </label>
+      ))}
+    </div>
+  )
+}
+
+function Pagination({
+  currentPage,
+  disabled = false,
+  onPageChange,
+  totalPages,
+  uiLanguage,
+}: {
+  currentPage: number
+  disabled?: boolean
+  onPageChange: (page: number) => void
+  totalPages: number
+  uiLanguage: UiLanguage
+}) {
+  const t = translations[uiLanguage]
+  const previousPage = Math.max(currentPage - 1, 1)
+  const nextPage = Math.min(currentPage + 1, totalPages)
+  const atStart = currentPage <= 1
+  const atEnd = currentPage >= totalPages
+
+  return (
+    <nav className="pagination" aria-label={t.paginationLabel}>
+      <button type="button" disabled={disabled || atStart} onClick={() => onPageChange(1)} aria-label={t.firstPage} title={t.firstPage}>
+        <ChevronsLeft size={18} aria-hidden="true" />
+      </button>
+      <button type="button" disabled={disabled || atStart} onClick={() => onPageChange(previousPage)} aria-label={t.previousPage} title={t.previousPage}>
+        <ChevronLeft size={18} aria-hidden="true" />
+      </button>
+      <span>{t.pageCount(currentPage, totalPages)}</span>
+      <button type="button" disabled={disabled || atEnd} onClick={() => onPageChange(nextPage)} aria-label={t.nextPage} title={t.nextPage}>
+        <ChevronRight size={18} aria-hidden="true" />
+      </button>
+      <button type="button" disabled={disabled || atEnd} onClick={() => onPageChange(totalPages)} aria-label={t.lastPage} title={t.lastPage}>
+        <ChevronsRight size={18} aria-hidden="true" />
+      </button>
+    </nav>
+  )
+}
+
+function BookCover({ book, variant, uiLanguage }: { book: Book; variant: 'card' | 'detail'; uiLanguage: UiLanguage }) {
   const candidates = useMemo(
     () =>
       unique([
@@ -255,13 +567,15 @@ function BookCover({ book, variant }: { book: Book; variant: 'card' | 'detail' }
           onError={() => setCoverIndex((current) => current + 1)}
         />
       ) : (
-        <CoverPlaceholder book={book} />
+        <CoverPlaceholder book={book} uiLanguage={uiLanguage} />
       )}
     </div>
   )
 }
 
-function CoverPlaceholder({ book }: { book: Book }) {
+function CoverPlaceholder({ book, uiLanguage }: { book: Book; uiLanguage: UiLanguage }) {
+  const t = translations[uiLanguage]
+
   return (
     <div className="cover-placeholder" aria-hidden="true">
       <div className="placeholder-mark">
@@ -269,22 +583,37 @@ function CoverPlaceholder({ book }: { book: Book }) {
       </div>
       <div>
         <p className="placeholder-title">{book.title}</p>
-        <p className="placeholder-author">{book.authors[0] || 'Tampere library'}</p>
+        <p className="placeholder-author">{book.authors[0] || t.tampereLibrary}</p>
       </div>
     </div>
   )
 }
 
-function BookCard({ book, onSelect }: { book: Book; onSelect: (book: Book) => void }) {
+const BookCard = memo(function BookCard({
+  book,
+  filteredOut,
+  onSelect,
+  uiLanguage,
+}: {
+  book: Book
+  filteredOut: boolean
+  onSelect: (book: Book) => void
+  uiLanguage: UiLanguage
+}) {
+  const t = translations[uiLanguage]
+  const visibleBranches = book.branches.slice(0, 5)
+  const hiddenBranchCount = Math.max(book.branches.length - visibleBranches.length, 0)
+
   function openCard() {
     onSelect(book)
   }
 
   return (
     <article
-      className="book-card"
+      className={`book-card${filteredOut ? ' is-filtered-out' : ''}`}
       role="button"
-      tabIndex={0}
+      tabIndex={filteredOut ? -1 : 0}
+      aria-hidden={filteredOut}
       onClick={openCard}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -292,123 +621,142 @@ function BookCard({ book, onSelect }: { book: Book; onSelect: (book: Book) => vo
           openCard()
         }
       }}
-      aria-label={`Open details for ${book.title}`}
+      aria-label={t.openDetailsFor(book.title)}
     >
-      <BookCover book={book} variant="card" />
+      <BookCover book={book} variant="card" uiLanguage={uiLanguage} />
 
       <div className="book-copy">
-        <div>
+        <div className="book-main">
           <h2>{book.title}</h2>
-          <p className="authors">{book.authors.length ? book.authors.join(', ') : 'Unknown author'}</p>
+          <p className="authors">{book.authors.length ? book.authors.join(', ') : t.unknownAuthor}</p>
+          <div className="book-facts">
+            {book.publicationYear ? <span>{t.published(book.publicationYear)}</span> : null}
+            {book.languages.slice(0, 2).map((language) => (
+              <span key={language}>{getBookLanguageLabel(language, uiLanguage)}</span>
+            ))}
+          </div>
         </div>
 
-        <div className="meta-row">
-          <Rating rating={book.rating} />
-          {book.publicationYear ? <span>{book.publicationYear}</span> : null}
-          {book.languages.slice(0, 2).map((language) => (
-            <span key={language}>{LANGUAGE_LABELS[language] || language}</span>
-          ))}
-        </div>
-
-        <div className="subjects">
-          {book.subjects.slice(0, 4).map((subject) => (
-            <span key={subject}>{subject}</span>
-          ))}
-        </div>
+        {hasRatings(book.ratings) ? (
+          <div className="card-rating-row">
+            <Ratings ratings={book.ratings} uiLanguage={uiLanguage} />
+          </div>
+        ) : null}
 
         <div className="branches">
-          <strong>Tampere libraries</strong>
+          <strong>{t.tampereLibraries}</strong>
           {book.branches.length ? (
-            book.branches.map((branch) => (
-              <div className="branch-row" key={branch.code}>
-                <span>{branch.branch}</span>
-                <small>Listed</small>
-              </div>
-            ))
+            <div className="branch-list">
+              {visibleBranches.map((branch) => (
+                <span className="branch-row" key={branch.code}>
+                  {getLibraryDisplayName(branch.branch, uiLanguage)}
+                </span>
+              ))}
+              {hiddenBranchCount ? <span className="branch-row branch-more">{t.moreBranches(hiddenBranchCount)}</span> : null}
+            </div>
           ) : (
-            <p>No Tampere branch detail returned.</p>
+            <p>{t.noBranchDetails}</p>
           )}
         </div>
-
-        <span className="card-cta">View details</span>
       </div>
     </article>
   )
-}
+})
 
 function BookDetailsPanel({
   book,
   detailState,
   onClose,
+  onSearchAuthor,
+  onSearchLibrary,
+  uiLanguage,
 }: {
   book: Book
   detailState: { loading: boolean; error?: string; details?: BookDetails }
   onClose: () => void
+  onSearchAuthor: (author: string) => void
+  onSearchLibrary: (library: LibraryPresence) => void
+  uiLanguage: UiLanguage
 }) {
+  const t = translations[uiLanguage]
   const details = detailState.details
   const displayBook = details ?? book
+  const primaryAuthor = displayBook.authors[0]
+  const publicationLine = formatPublicationLine(displayBook)
+  const isbnLine = displayBook.isbns[0] ? formatIsbn(displayBook.isbns[0]) : undefined
+  const formatLine = unique([formatBookFormat(displayBook.formats[0], uiLanguage), details?.edition].filter(Boolean) as string[]).join(', ')
+  const [showLoadingIndicator, setShowLoadingIndicator] = useState(false)
+
+  useEffect(() => {
+    if (!detailState.loading) {
+      setShowLoadingIndicator(false)
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => setShowLoadingIndicator(true), 300)
+    return () => window.clearTimeout(timeoutId)
+  }, [detailState.loading])
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <section className="details-panel" role="dialog" aria-modal="true" aria-labelledby="book-details-title" onClick={(event) => event.stopPropagation()}>
-        <button className="icon-button close-button" type="button" onClick={onClose} aria-label="Close details">
+        <button className="icon-button close-button" type="button" onClick={onClose} aria-label={t.closeDetails}>
           <X size={20} aria-hidden="true" />
         </button>
 
-        <BookCover book={displayBook} variant="detail" />
+        <BookCover book={displayBook} variant="detail" uiLanguage={uiLanguage} />
 
         <div className="details-main">
-          <div className="details-heading">
+          <div className="details-heading piki-details-heading">
+            {formatLine ? <p className="details-format">{formatLine}</p> : null}
             <h2 id="book-details-title">{displayBook.title}</h2>
-            <p>{displayBook.authors.length ? displayBook.authors.join(', ') : 'Unknown author'}</p>
+            {primaryAuthor ? (
+              <button className="author-link" type="button" onClick={() => onSearchAuthor(primaryAuthor)}>
+                {primaryAuthor}
+              </button>
+            ) : (
+              <p>{t.unknownAuthor}</p>
+            )}
+            {publicationLine ? <p className="details-publication-line">{publicationLine}</p> : null}
           </div>
 
           <div className="meta-row">
-            <Rating rating={displayBook.rating} />
-            {displayBook.publicationYear ? (
-              <span>
-                <Calendar size={14} aria-hidden="true" />
-                {displayBook.publicationYear}
-              </span>
-            ) : null}
-            {displayBook.isbns[0] ? (
-              <span>
-                <Hash size={14} aria-hidden="true" />
-                {displayBook.isbns[0]}
-              </span>
-            ) : null}
+            {hasRatings(displayBook.ratings) ? <Ratings ratings={displayBook.ratings} uiLanguage={uiLanguage} /> : null}
           </div>
 
-          {detailState.loading ? <p className="detail-muted">Loading more catalogue details...</p> : null}
-          {detailState.error ? <p className="detail-error">{detailState.error}</p> : null}
+          {detailState.error ? <p className="detail-error">{translateError(detailState.error, uiLanguage)}</p> : null}
 
-          <DetailSection title="Description">
-            <p>{details?.description || 'No description was found in Finna or Open Library for this edition.'}</p>
+          <DetailSection title={t.description}>
+            {details?.description ? <p>{details.description}</p> : null}
+            {!details?.description && detailState.loading && showLoadingIndicator ? (
+              <div className="detail-loading" role="status">
+                <span className="loading-spinner" aria-hidden="true" />
+                <span>{t.loadingDetails}</span>
+              </div>
+            ) : null}
+            {!details?.description && !detailState.loading ? <p>{t.noDescription}</p> : null}
           </DetailSection>
 
-          <DetailSection title="Libraries">
-            <div className="library-list">
-              {(details?.catalogueLibraries.length ? details.catalogueLibraries : displayBook.branches).map((library) => (
-                <div className="library-item" key={library.code}>
-                  <span>{library.branch}</span>
-                  <strong>Listed in catalogue</strong>
-                </div>
-              ))}
-              {!details?.catalogueLibraries.length && !displayBook.branches.length ? <p>No library presence details returned.</p> : null}
-            </div>
-          </DetailSection>
-
-          <div className="detail-grid">
-            <DetailList title="Publication" values={[...(details?.publicationInfo ?? []), ...(details?.publishers ?? [])]} />
-            <DetailList title="Physical details" values={details?.physicalDescriptions ?? []} />
-            <DetailList title="Series" values={details?.series ?? []} />
-            <DetailList title="Languages" values={displayBook.languages.map((language) => LANGUAGE_LABELS[language] || language)} />
-          </div>
-
-          <DetailList title="Subjects" values={displayBook.subjects} compact />
+          <dl className="piki-metadata">
+            <DetailMetadataRow title={t.genre} values={details?.genres ?? []} />
+            <DetailMetadataRow title={t.physicalDetails} values={details?.physicalDescriptions ?? []} />
+            <DetailMetadataRow title={t.languages} values={displayBook.languages.map((language) => getBookLanguageLabel(language, uiLanguage))} />
+            <DetailMetadataRow title={t.publisher} values={publicationLine ? [publicationLine] : []} />
+            <DetailMetadataRow title={t.series} values={details?.series ?? []} />
+            <DetailMetadataRow title={t.classification} values={details?.classifications ?? []} />
+            <DetailMetadataRow title={t.subjects} values={displayBook.subjects} />
+            <DetailMetadataRow title={t.additionalInformation} values={displayBook.authors} />
+            <DetailMetadataRow title={t.isbn} values={isbnLine ? [isbnLine] : []} />
+            <LibraryMetadataRow
+              title={t.libraries}
+              libraries={details?.catalogueLibraries.length ? details.catalogueLibraries : displayBook.branches}
+              onSearchLibrary={onSearchLibrary}
+              uiLanguage={uiLanguage}
+            />
+          </dl>
 
           <a className="piki-link details-link" href={displayBook.pikiUrl} target="_blank" rel="noreferrer">
-            Open in PIKI
+            {t.openInPiki}
             <ExternalLink size={16} aria-hidden="true" />
           </a>
         </div>
@@ -426,30 +774,184 @@ function DetailSection({ title, children }: { title: string; children: ReactNode
   )
 }
 
-function DetailList({ title, values, compact = false }: { title: string; values: string[]; compact?: boolean }) {
+function DetailMetadataRow({ title, values }: { title: string; values: string[] }) {
   if (!values.length) return null
 
   return (
-    <DetailSection title={title}>
-      <div className={compact ? 'subjects detail-tags' : 'detail-list'}>
+    <div className="detail-metadata-row">
+      <dt>{title}</dt>
+      <dd>
         {values.map((value, index) => (
           <span key={`${value}-${index}`}>{value}</span>
         ))}
-      </div>
-    </DetailSection>
+      </dd>
+    </div>
   )
 }
 
-function Rating({ rating }: { rating?: Book['rating'] }) {
-  if (!rating) return <span className="muted-rating">No Open Library rating</span>
+function LibraryMetadataRow({
+  libraries,
+  onSearchLibrary,
+  title,
+  uiLanguage,
+}: {
+  libraries: LibraryPresence[]
+  onSearchLibrary: (library: LibraryPresence) => void
+  title: string
+  uiLanguage: UiLanguage
+}) {
+  if (!libraries.length) return null
 
   return (
-    <span className="rating">
-      <Star size={15} fill="currentColor" aria-hidden="true" />
-      {rating.value.toFixed(1)}
-      <small>{rating.count} ratings</small>
+    <div className="detail-metadata-row">
+      <dt>{title}</dt>
+      <dd>
+        {libraries.map((library) => (
+          <button className="metadata-link" key={library.code} type="button" onClick={() => onSearchLibrary(library)}>
+            {getLibraryDisplayName(library.branch, uiLanguage)}
+          </button>
+        ))}
+      </dd>
+    </div>
+  )
+}
+
+const RATING_SOURCES: RatingSource[] = ['openlibrary', 'hardcover']
+
+function Ratings({ ratings, uiLanguage }: { ratings?: Book['ratings']; uiLanguage: UiLanguage }) {
+  const t = translations[uiLanguage]
+
+  return (
+    <span className="rating-list" aria-label={t.publicRatings}>
+      {RATING_SOURCES.map((source) => {
+        const rating = ratings?.[source]
+        return (
+          <span className="rating" key={source}>
+            <RatingSourceMark source={source} uiLanguage={uiLanguage} />
+            <strong>{rating ? rating.value.toFixed(1) : '--'}</strong>
+            {rating ? <small>({formatRatingCount(rating.count)})</small> : null}
+          </span>
+        )
+      })}
     </span>
   )
+}
+
+function hasRatings(ratings?: Book['ratings']): boolean {
+  return RATING_SOURCES.some((source) => ratings?.[source])
+}
+
+function translateError(error: string, uiLanguage: UiLanguage): string {
+  const t = translations[uiLanguage]
+  if (error === GENERIC_SEARCH_ERROR) return t.searchFailed
+  if (error === GENERIC_DETAILS_ERROR) return t.detailsLoadFailed
+  return error
+}
+
+function getBestRating(book: Book): BookRating | undefined {
+  return book.ratings?.openlibrary ?? book.ratings?.hardcover ?? book.rating
+}
+
+function passesRatingFilter(book: Book, minRating: number): boolean {
+  return minRating ? (getBestRating(book)?.value ?? 0) >= minRating : true
+}
+
+function getStoredFilters(): BookSearchFilters {
+  if (typeof window === 'undefined') return initialFilters
+
+  try {
+    const stored = window.localStorage.getItem(FILTER_STORAGE_KEY)
+    if (!stored) return initialFilters
+
+    return normalizeStoredFilters(JSON.parse(stored))
+  } catch {
+    return initialFilters
+  }
+}
+
+function normalizeStoredFilters(value: unknown): BookSearchFilters {
+  if (!value || typeof value !== 'object') return initialFilters
+
+  const stored = value as Partial<BookSearchFilters>
+  const allowedLanguages = new Set(LANGUAGE_OPTIONS.map((option) => option.value).filter(Boolean))
+  const allowedGenres = new Set(GENRE_OPTIONS.map((option) => option.value))
+  const allowedBranches = new Set(TAMPERE_BRANCHES.map((branch) => branch.code))
+
+  return {
+    query: typeof stored.query === 'string' && stored.query.trim() ? stored.query.trim() : initialFilters.query,
+    languageCodes: normalizeStoredStringList(stored.languageCodes, allowedLanguages),
+    genreValues: normalizeStoredStringList(stored.genreValues, allowedGenres),
+    branchCodes: normalizeStoredStringList(stored.branchCodes, allowedBranches),
+    minRating: normalizeStoredRating(stored.minRating),
+    sort: normalizeStoredSort(stored.sort),
+  }
+}
+
+function normalizeStoredStringList(value: unknown, allowedValues: Set<string>): string[] {
+  if (!Array.isArray(value)) return []
+  return unique(value.filter((item): item is string => typeof item === 'string' && allowedValues.has(item)))
+}
+
+function normalizeStoredRating(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return initialFilters.minRating
+  return Math.min(Math.max(Math.round(value * 2) / 2, 0), 5)
+}
+
+function normalizeStoredSort(value: unknown): SortMode {
+  return value === 'rating' || value === 'newest' || value === 'oldest' || value === 'title' || value === 'relevance' ? value : initialFilters.sort
+}
+
+function getBookLanguageLabel(language: string, uiLanguage: UiLanguage): string {
+  const labels = translations[uiLanguage].bookLanguages
+  return labels[language as keyof typeof labels] || language
+}
+
+function formatBookFormat(format: string | undefined, uiLanguage: UiLanguage): string | undefined {
+  if (!format) return undefined
+  if (format === 'Kirja' || format.toLowerCase() === 'book') return translations[uiLanguage].bookFormat
+  return format
+}
+
+function formatPublicationLine(book: Pick<BookDetails, 'edition' | 'publicationInfo' | 'publicationYear' | 'publishers'> | Book): string | undefined {
+  const details = book as Partial<BookDetails>
+  const publicationInfo = details.publicationInfo?.join(' ').replace(/\s+/g, ' ').trim()
+  const publishers = details.publishers?.join(', ').trim()
+  const year = book.publicationYear ? String(book.publicationYear) : ''
+  const edition = details.edition?.trim()
+  const parts = unique([publicationInfo, publishers, year].filter(Boolean) as string[])
+  const line = parts.join(' ').replace(/\s+([:,.])/g, '$1').replace(/\s+/g, ' ').trim()
+  return [line, edition].filter(Boolean).join('. ') || undefined
+}
+
+function formatIsbn(isbn: string): string {
+  if (isbn.length === 13) return `${isbn.slice(0, 3)}-${isbn.slice(3, 4)}-${isbn.slice(4, 6)}-${isbn.slice(6, 12)}-${isbn.slice(12)}`
+  if (isbn.length === 10) return `${isbn.slice(0, 1)}-${isbn.slice(1, 4)}-${isbn.slice(4, 9)}-${isbn.slice(9)}`
+  return isbn
+}
+
+function getLibraryDisplayName(name: string, uiLanguage: UiLanguage): string {
+  if (name === 'Main library Metso' || name === 'Main Library Metso') {
+    return translations[uiLanguage].mainLibraryMetso
+  }
+
+  return name
+}
+
+function RatingSourceMark({ source, uiLanguage }: { source: RatingSource; uiLanguage: UiLanguage }) {
+  const t = translations[uiLanguage]
+  const label = source === 'hardcover' ? t.ratingSourceHardcover : t.ratingSourceOpenLibrary
+
+  return (
+    <span className={`rating-source rating-source-${source}`} title={label} aria-label={label}>
+      {source === 'hardcover' ? 'H' : 'OL'}
+    </span>
+  )
+}
+
+function formatRatingCount(count: number): string {
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(count >= 10_000_000 ? 0 : 1)}m`
+  if (count >= 1_000) return `${(count / 1_000).toFixed(count >= 10_000 ? 0 : 1)}k`
+  return count.toString()
 }
 
 function unique<T>(values: Array<T | undefined>): T[] {
