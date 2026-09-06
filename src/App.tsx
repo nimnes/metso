@@ -8,7 +8,6 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ExternalLink,
-  LibraryBig,
   Search,
   X,
 } from 'lucide-react'
@@ -253,7 +252,7 @@ function App() {
         <div className="top-row">
           <div className="brand">
             <div className="brand-mark">
-              <LibraryBig size={26} aria-hidden="true" />
+              <MetsoBirdMark />
             </div>
             <div>
               <p>Metso</p>
@@ -394,6 +393,10 @@ async function getOptionalPikiDescription(isbn?: string): Promise<string | undef
   } catch {
     return undefined
   }
+}
+
+function MetsoBirdMark() {
+  return <img className="metso-bird-mark" src="/metso-icon.png" alt="" aria-hidden="true" />
 }
 
 function LanguageSwitcher({ currentLanguage, onChange }: { currentLanguage: UiLanguage; onChange: (language: UiLanguage) => void }) {

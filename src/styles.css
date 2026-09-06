@@ -63,9 +63,12 @@ button {
   width: 52px;
   height: 52px;
   place-items: center;
-  color: #fff;
-  background: #12664f;
-  border-radius: 8px;
+}
+
+.metso-bird-mark {
+  display: block;
+  width: 52px;
+  height: 52px;
 }
 
 .brand p,
