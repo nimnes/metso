@@ -271,25 +271,6 @@ button {
   font-weight: 400;
 }
 
-.rating-filter {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-}
-
-.rating-filter input {
-  width: 100%;
-  min-width: 0;
-}
-
-.rating-filter strong {
-  min-width: 44px;
-  color: #303638;
-  font-size: 0.95rem;
-  text-align: right;
-}
-
 .sort-select {
   width: 100%;
   min-height: 38px;
@@ -346,10 +327,6 @@ button {
     border-color 160ms ease,
     box-shadow 160ms ease,
     transform 160ms ease;
-}
-
-.book-card.is-filtered-out {
-  display: none;
 }
 
 .pagination {

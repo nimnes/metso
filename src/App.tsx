@@ -20,18 +20,17 @@ import { GENRE_OPTIONS } from './data/genreOptions'
 import { LANGUAGE_OPTIONS, TAMPERE_BRANCHES } from './data/tampereBranches'
 import { getStoredUiLanguage, translations, UI_LANGUAGE_STORAGE_KEY, UI_LANGUAGES } from './i18n'
 import type { UiLanguage } from './i18n'
-import type { Book, BookDetails, BookRating, BookSearchFilters, LibraryPresence, RatingSource, SearchState, SortMode } from './types'
+import type { Book, BookDetails, BookSearchFilters, LibraryPresence, RatingSource, SearchState, SortMode } from './types'
 
 const initialFilters: BookSearchFilters = {
   query: 'mestar* margarita',
   languageCodes: [],
   genreValues: [],
   branchCodes: [],
-  minRating: 0,
   sort: 'relevance',
 }
 
-type FilterSectionKey = 'language' | 'genre' | 'library' | 'rating' | 'sort'
+type FilterSectionKey = 'language' | 'genre' | 'library' | 'sort'
 
 const GENERIC_SEARCH_ERROR = 'metso:search-failed'
 const GENERIC_DETAILS_ERROR = 'metso:details-failed'
@@ -41,7 +40,6 @@ const initialFilterSections: Record<FilterSectionKey, boolean> = {
   language: true,
   genre: true,
   library: true,
-  rating: true,
   sort: true,
 }
 
@@ -56,17 +54,15 @@ function App() {
   const resultsTopRef = useRef<HTMLDivElement | null>(null)
   const [openFilterSections, setOpenFilterSections] = useState<Record<FilterSectionKey, boolean>>(getStoredFilterSections)
   const t = translations[uiLanguage]
-  const catalogueSort = filters.sort === 'rating' ? 'relevance' : filters.sort
   const catalogueFilters = useMemo<BookSearchFilters>(
     () => ({
       query: filters.query,
       languageCodes: filters.languageCodes,
       genreValues: filters.genreValues,
       branchCodes: filters.branchCodes,
-      minRating: 0,
-      sort: catalogueSort,
+      sort: filters.sort,
     }),
-    [catalogueSort, filters.branchCodes, filters.genreValues, filters.languageCodes, filters.query],
+    [filters.branchCodes, filters.genreValues, filters.languageCodes, filters.query, filters.sort],
   )
 
   useEffect(() => {
@@ -173,15 +169,8 @@ function App() {
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [selectedBook])
 
-  const displayedBooks = useMemo(() => {
-    if (filters.sort !== 'rating') return state.books
-    return [...state.books].sort((a, b) => (getBestRating(b)?.value ?? 0) - (getBestRating(a)?.value ?? 0))
-  }, [filters.sort, state.books])
-
-  const visibleBookCount = useMemo(
-    () => displayedBooks.filter((book) => passesRatingFilter(book, filters.minRating)).length,
-    [displayedBooks, filters.minRating],
-  )
+  const displayedBooks = state.books
+  const visibleBookCount = displayedBooks.length
   const totalPages = Math.max(Math.ceil(state.total / FINNA_PAGE_SIZE), 1)
 
   const changePage = useCallback((page: number) => {
@@ -202,14 +191,8 @@ function App() {
   }
 
   function updateFilter<K extends keyof BookSearchFilters>(key: K, value: BookSearchFilters[K]) {
-    if (key !== 'minRating') {
-      setCurrentPage(1)
-    }
+    setCurrentPage(1)
     setFilters((current) => ({ ...current, [key]: value }))
-  }
-
-  function updateRatingFilter(event: React.FormEvent<HTMLInputElement>) {
-    updateFilter('minRating', Number(event.currentTarget.value))
   }
 
   function updateMultiFilter(key: 'branchCodes' | 'genreValues' | 'languageCodes', value: string, optionCount: number) {
@@ -328,25 +311,9 @@ function App() {
             />
           </FilterPanelSection>
 
-          <FilterPanelSection open={openFilterSections.rating} title={t.ratingFilter} onToggle={() => toggleFilterSection('rating')}>
-            <label className="rating-filter">
-              <input
-                type="range"
-                min="0"
-                max="5"
-                step="0.5"
-                value={filters.minRating}
-                onChange={updateRatingFilter}
-                onInput={updateRatingFilter}
-              />
-              <strong>{filters.minRating ? `${filters.minRating}+` : t.any}</strong>
-            </label>
-          </FilterPanelSection>
-
           <FilterPanelSection open={openFilterSections.sort} title={t.sortFilter} onToggle={() => toggleFilterSection('sort')}>
             <select className="sort-select" value={filters.sort} onChange={(event) => updateFilter('sort', event.target.value as SortMode)}>
               <option value="relevance">{t.sortRelevance}</option>
-              <option value="rating">{t.sortRating}</option>
               <option value="newest">{t.sortNewest}</option>
               <option value="oldest">{t.sortOldest}</option>
               <option value="title">{t.sortTitle}</option>
@@ -368,7 +335,7 @@ function App() {
 
           <section className="book-grid">
             {displayedBooks.map((book) => (
-              <BookCard book={book} filteredOut={!passesRatingFilter(book, filters.minRating)} key={book.id} onSelect={selectBook} uiLanguage={uiLanguage} />
+              <BookCard book={book} key={book.id} onSelect={selectBook} uiLanguage={uiLanguage} />
             ))}
           </section>
 
@@ -597,12 +564,10 @@ function CoverPlaceholder({ book, uiLanguage }: { book: Book; uiLanguage: UiLang
 
 const BookCard = memo(function BookCard({
   book,
-  filteredOut,
   onSelect,
   uiLanguage,
 }: {
   book: Book
-  filteredOut: boolean
   onSelect: (book: Book) => void
   uiLanguage: UiLanguage
 }) {
@@ -616,10 +581,9 @@ const BookCard = memo(function BookCard({
 
   return (
     <article
-      className={`book-card${filteredOut ? ' is-filtered-out' : ''}`}
+      className="book-card"
       role="button"
-      tabIndex={filteredOut ? -1 : 0}
-      aria-hidden={filteredOut}
+      tabIndex={0}
       onClick={openCard}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -854,14 +818,6 @@ function translateError(error: string, uiLanguage: UiLanguage): string {
   return error
 }
 
-function getBestRating(book: Book): BookRating | undefined {
-  return book.ratings?.openlibrary ?? book.ratings?.hardcover ?? book.rating
-}
-
-function passesRatingFilter(book: Book, minRating: number): boolean {
-  return minRating ? (getBestRating(book)?.value ?? 0) >= minRating : true
-}
-
 function getStoredFilters(): BookSearchFilters {
   if (typeof window === 'undefined') return initialFilters
 
@@ -888,7 +844,6 @@ function normalizeStoredFilters(value: unknown): BookSearchFilters {
     languageCodes: normalizeStoredStringList(stored.languageCodes, allowedLanguages),
     genreValues: normalizeStoredStringList(stored.genreValues, allowedGenres),
     branchCodes: normalizeStoredStringList(stored.branchCodes, allowedBranches),
-    minRating: normalizeStoredRating(stored.minRating),
     sort: normalizeStoredSort(stored.sort),
   }
 }
@@ -915,7 +870,6 @@ function normalizeStoredFilterSections(value: unknown): Record<FilterSectionKey,
     language: typeof stored.language === 'boolean' ? stored.language : initialFilterSections.language,
     genre: typeof stored.genre === 'boolean' ? stored.genre : initialFilterSections.genre,
     library: typeof stored.library === 'boolean' ? stored.library : initialFilterSections.library,
-    rating: typeof stored.rating === 'boolean' ? stored.rating : initialFilterSections.rating,
     sort: typeof stored.sort === 'boolean' ? stored.sort : initialFilterSections.sort,
   }
 }
@@ -925,13 +879,8 @@ function normalizeStoredStringList(value: unknown, allowedValues: Set<string>): 
   return unique(value.filter((item): item is string => typeof item === 'string' && allowedValues.has(item)))
 }
 
-function normalizeStoredRating(value: unknown): number {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return initialFilters.minRating
-  return Math.min(Math.max(Math.round(value * 2) / 2, 0), 5)
-}
-
 function normalizeStoredSort(value: unknown): SortMode {
-  return value === 'rating' || value === 'newest' || value === 'oldest' || value === 'title' || value === 'relevance' ? value : initialFilters.sort
+  return value === 'newest' || value === 'oldest' || value === 'title' || value === 'relevance' ? value : initialFilters.sort
 }
 
 function getBookLanguageLabel(language: string, uiLanguage: UiLanguage): string {

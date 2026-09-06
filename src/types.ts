@@ -1,4 +1,4 @@
-export type SortMode = 'relevance' | 'rating' | 'newest' | 'oldest' | 'title'
+export type SortMode = 'relevance' | 'newest' | 'oldest' | 'title'
 
 export type BookRating = {
   value: number
@@ -49,7 +49,6 @@ export type BookSearchFilters = {
   languageCodes: string[]
   genreValues: string[]
   branchCodes: string[]
-  minRating: number
   sort: SortMode
 }
 
