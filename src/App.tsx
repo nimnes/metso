@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { FINNA_PAGE_SIZE, getFinnaBookDetails, searchFinna } from './api/finna'
 import { enrichBookWithHardcover, getHardcoverDescription } from './api/hardcover'
+import { enrichBookWithMostRecommended } from './api/mostRecommendedBooks'
 import { enrichBookWithOpenLibrary, getOpenLibraryDescription } from './api/openLibrary'
 import { getPikiDescription } from './api/pikiDescription'
 import { GENRE_OPTIONS } from './data/genreOptions'
@@ -46,7 +47,7 @@ function App() {
   const [filters, setFilters] = useState<BookSearchFilters>(getStoredFilters)
   const [draftQuery, setDraftQuery] = useState(filters.query)
   const [currentPage, setCurrentPage] = useState(1)
-  const [state, setState] = useState<SearchState>({ loading: true, total: 0, books: [] })
+  const [state, setState] = useState<SearchState>({ loading: true, enriching: 0, total: 0, books: [] })
   const [selectedBook, setSelectedBook] = useState<Book | undefined>()
   const [detailState, setDetailState] = useState<{ loading: boolean; error?: string; details?: BookDetails }>({ loading: false })
   const [uiLanguage, setUiLanguage] = useState(getStoredUiLanguage)
@@ -89,27 +90,42 @@ function App() {
     let cancelled = false
 
     async function runSearch() {
-      setState((current) => ({ ...current, loading: true, error: undefined }))
+      setState((current) => ({ ...current, loading: true, enriching: 0, error: undefined }))
       try {
         const result = await searchFinna(catalogueFilters, currentPage)
         if (cancelled) return
-        setState({ loading: false, total: result.total, books: result.books })
+        setState({ loading: false, enriching: result.books.length, total: result.total, books: result.books })
 
         result.books.forEach((book) => {
-          enrichBookRatings(book, (enrichedBook) => {
-            if (cancelled) return
-            setState((current) => updateBookInSearchState(current, enrichedBook))
-            setDetailState((current) =>
-              current.details?.id === enrichedBook.id
-                ? { ...current, details: { ...current.details, ratings: enrichedBook.ratings, rating: enrichedBook.rating } }
-                : current,
-            )
-          })
+          enrichBookRatings(
+            book,
+            (enrichedBook) => {
+              if (cancelled) return
+              setState((current) => updateBookInSearchState(current, enrichedBook))
+              setDetailState((current) =>
+                current.details?.id === enrichedBook.id
+                  ? {
+                      ...current,
+                      details: {
+                        ...current.details,
+                        ratings: enrichedBook.ratings,
+                        rating: enrichedBook.rating,
+                        recommended: enrichedBook.recommended,
+                      },
+                    }
+                  : current,
+              )
+            },
+            () => {
+              if (!cancelled) setState((current) => ({ ...current, enriching: Math.max(current.enriching - 1, 0) }))
+            },
+          )
         })
       } catch (error) {
         if (!cancelled) {
           setState({
             loading: false,
+            enriching: 0,
             total: 0,
             books: [],
             error: error instanceof Error ? error.message : GENERIC_SEARCH_ERROR,
@@ -183,7 +199,7 @@ function App() {
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [selectedBook])
 
-  const displayedBooks = useMemo(() => sortDisplayedBooks(state.books, filters.sort), [filters.sort, state.books])
+  const displayedBooks = useMemo(() => sortDisplayedBooks(state.books, filters.sort, state.enriching), [filters.sort, state.books, state.enriching])
   const visibleBookCount = displayedBooks.length
   const totalPages = Math.max(Math.ceil(state.total / FINNA_PAGE_SIZE), 1)
 
@@ -394,21 +410,32 @@ async function getOptionalOpenLibraryDescription(isbn?: string): Promise<string 
   }
 }
 
-async function enrichBookRatings(book: Book, onUpdate: (book: Book) => void): Promise<void> {
+async function enrichBookRatings(book: Book, onUpdate: (book: Book) => void, onComplete: () => void): Promise<void> {
   let enrichedBook = book
 
   try {
-    enrichedBook = await enrichBookWithOpenLibrary(enrichedBook)
-    onUpdate(enrichedBook)
-  } catch {
-    // Keep trying other optional enrichment sources.
-  }
+    try {
+      enrichedBook = await enrichBookWithOpenLibrary(enrichedBook)
+      onUpdate(enrichedBook)
+    } catch {
+      // Keep trying other optional enrichment sources.
+    }
 
-  try {
-    enrichedBook = await enrichBookWithHardcover(enrichedBook)
-    onUpdate(enrichedBook)
-  } catch {
-    // Ratings are optional enrichment; catalogue results should stay usable.
+    try {
+      enrichedBook = await enrichBookWithHardcover(enrichedBook)
+      onUpdate(enrichedBook)
+    } catch {
+      // Ratings are optional enrichment; catalogue results should stay usable.
+    }
+
+    try {
+      enrichedBook = await enrichBookWithMostRecommended(enrichedBook)
+      onUpdate(enrichedBook)
+    } catch {
+      // Recommendation markers are optional enrichment too.
+    }
+  } finally {
+    onComplete()
   }
 }
 
@@ -419,8 +446,8 @@ function updateBookInSearchState(state: SearchState, enrichedBook: Book): Search
   }
 }
 
-function sortDisplayedBooks(books: Book[], sort: SortMode): Book[] {
-  if (sort !== 'rating') return books
+function sortDisplayedBooks(books: Book[], sort: SortMode, enriching: number): Book[] {
+  if (sort !== 'rating' || enriching > 0) return books
 
   return books
     .map((book, index) => ({ book, index }))
@@ -571,7 +598,17 @@ function Pagination({
   )
 }
 
-function BookCover({ book, variant, uiLanguage }: { book: Book; variant: 'card' | 'detail'; uiLanguage: UiLanguage }) {
+function BookCover({
+  book,
+  markers,
+  uiLanguage,
+  variant,
+}: {
+  book: Book
+  markers?: ReactNode
+  uiLanguage: UiLanguage
+  variant: 'card' | 'detail'
+}) {
   const candidates = useMemo(
     () =>
       unique([
@@ -592,6 +629,7 @@ function BookCover({ book, variant, uiLanguage }: { book: Book; variant: 'card' 
 
   return (
     <div className={variant === 'card' ? 'cover-wrap' : 'details-cover'}>
+      {markers}
       {coverUrl ? (
         <img
           src={coverUrl}
@@ -653,14 +691,11 @@ const BookCard = memo(function BookCard({
       }}
       aria-label={t.openDetailsFor(book.title)}
     >
-      <BookCover book={book} variant="card" uiLanguage={uiLanguage} />
+      <BookCover book={book} markers={<BookMarkers book={book} uiLanguage={uiLanguage} />} variant="card" uiLanguage={uiLanguage} />
 
       <div className="book-copy">
         <div className="book-main">
-          <h2>
-            <span>{book.title}</span>
-            {book.topLoaned ? <TopLoanedMark book={book} uiLanguage={uiLanguage} /> : null}
-          </h2>
+          <h2>{book.title}</h2>
           <p className="authors">{book.authors.length ? book.authors.join(', ') : t.unknownAuthor}</p>
           <div className="book-facts">
             {book.publicationYear ? <span>{t.published(book.publicationYear)}</span> : null}
@@ -853,6 +888,17 @@ function LibraryMetadataRow({
 
 const RATING_SOURCES: RatingSource[] = ['openlibrary', 'hardcover', 'finna']
 
+function BookMarkers({ book, uiLanguage }: { book: Book; uiLanguage: UiLanguage }) {
+  if (!book.topLoaned && !book.recommended) return null
+
+  return (
+    <div className="book-markers">
+      {book.topLoaned ? <TopLoanedMark book={book} uiLanguage={uiLanguage} /> : null}
+      {book.recommended ? <RecommendedMark book={book} uiLanguage={uiLanguage} /> : null}
+    </div>
+  )
+}
+
 function Ratings({ ratings, uiLanguage }: { ratings?: Book['ratings']; uiLanguage: UiLanguage }) {
   const t = translations[uiLanguage]
 
@@ -879,6 +925,24 @@ function TopLoanedMark({ book, uiLanguage }: { book: Book; uiLanguage: UiLanguag
 
   return (
     <span className="top-loaned-mark" title={label} aria-label={label}>
+      <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M12 2.2 14.3 4l2.9-.1 1.1 2.7 2.5 1.5-.7 2.9.7 2.8-2.5 1.6-1.1 2.7-2.9-.1-2.3 1.8L9.7 18l-2.9.1-1.1-2.7-2.5-1.6.7-2.8-.7-2.9 2.5-1.5 1.1-2.7 2.9.1L12 2.2Z"
+        />
+        <path fill="#fffdfa" d="m10.7 14.7-3-3 1.3-1.3 1.7 1.7 4.4-4.5 1.4 1.3-5.8 5.8Z" />
+      </svg>
+    </span>
+  )
+}
+
+function RecommendedMark({ book, uiLanguage }: { book: Book; uiLanguage: UiLanguage }) {
+  if (!book.recommended) return null
+
+  const label = translations[uiLanguage].recommendedBook(book.recommended.recommendersCount)
+
+  return (
+    <span className="recommended-mark" title={label} aria-label={label}>
       <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
         <path
           fill="currentColor"

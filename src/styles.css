@@ -415,6 +415,7 @@ button {
 }
 
 .cover-wrap {
+  position: relative;
   display: grid;
   width: 132px;
   height: 198px;
@@ -510,10 +511,11 @@ button {
 }
 
 .book-copy h2 {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  display: -webkit-box;
   margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   color: #111315;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 1.36rem;
@@ -521,20 +523,34 @@ button {
   line-height: 1.12;
 }
 
-.book-copy h2 span:first-child {
-  display: -webkit-box;
-  min-width: 0;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+.book-markers {
+  position: absolute;
+  z-index: 1;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+  padding: 3px;
+  background: rgba(255, 253, 250, 0.92);
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(31, 40, 42, 0.14);
 }
 
-.top-loaned-mark {
+.top-loaned-mark,
+.recommended-mark {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  color: #147259;
   line-height: 1;
+}
+
+.top-loaned-mark {
+  color: #147259;
+}
+
+.recommended-mark {
+  color: #62b5e5;
 }
 
 .authors {

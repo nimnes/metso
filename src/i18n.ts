@@ -73,6 +73,7 @@ export const translations = {
     ratingSourceOpenLibrary: 'Open Library',
     ratingSourceHardcover: 'Hardcover',
     topLoanedBook: 'Top-loaned PIKI book',
+    recommendedBook: (count: number) => `Recommended by ${count} source${count === 1 ? '' : 's'}`,
     bookLanguages: {
       '': 'Any language',
       fin: 'Finnish',
@@ -150,6 +151,7 @@ export const translations = {
     ratingSourceOpenLibrary: 'Open Library',
     ratingSourceHardcover: 'Hardcover',
     topLoanedBook: 'Популярная книга PIKI',
+    recommendedBook: (count: number) => `Рекомендуют источники: ${count}`,
     bookLanguages: {
       '': 'Любой язык',
       fin: 'Финский',

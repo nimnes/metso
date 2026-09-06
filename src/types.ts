@@ -13,6 +13,11 @@ export type LibraryPresence = {
   code: string
 }
 
+export type BookRecommendationStatus = {
+  recommendersCount: number
+  sourceUrl: string
+}
+
 export type Book = {
   id: string
   finnaId: string
@@ -28,6 +33,7 @@ export type Book = {
   ratings?: Partial<Record<RatingSource, BookRating>>
   rating?: BookRating
   topLoaned?: boolean
+  recommended?: BookRecommendationStatus
   branches: LibraryPresence[]
   pikiUrl: string
 }
@@ -55,6 +61,7 @@ export type BookSearchFilters = {
 
 export type SearchState = {
   loading: boolean
+  enriching: number
   error?: string
   total: number
   books: Book[]
