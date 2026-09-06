@@ -36,6 +36,14 @@ type FilterSectionKey = 'language' | 'genre' | 'library' | 'rating' | 'sort'
 const GENERIC_SEARCH_ERROR = 'metso:search-failed'
 const GENERIC_DETAILS_ERROR = 'metso:details-failed'
 const FILTER_STORAGE_KEY = 'metso-search-filters'
+const FILTER_SECTION_STORAGE_KEY = 'metso-filter-sections'
+const initialFilterSections: Record<FilterSectionKey, boolean> = {
+  language: true,
+  genre: true,
+  library: true,
+  rating: true,
+  sort: true,
+}
 
 function App() {
   const [filters, setFilters] = useState<BookSearchFilters>(getStoredFilters)
@@ -46,13 +54,7 @@ function App() {
   const [detailState, setDetailState] = useState<{ loading: boolean; error?: string; details?: BookDetails }>({ loading: false })
   const [uiLanguage, setUiLanguage] = useState(getStoredUiLanguage)
   const resultsTopRef = useRef<HTMLDivElement | null>(null)
-  const [openFilterSections, setOpenFilterSections] = useState<Record<FilterSectionKey, boolean>>({
-    language: true,
-    genre: true,
-    library: true,
-    rating: true,
-    sort: true,
-  })
+  const [openFilterSections, setOpenFilterSections] = useState<Record<FilterSectionKey, boolean>>(getStoredFilterSections)
   const t = translations[uiLanguage]
   const catalogueSort = filters.sort === 'rating' ? 'relevance' : filters.sort
   const catalogueFilters = useMemo<BookSearchFilters>(
@@ -75,6 +77,10 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters))
   }, [filters])
+
+  useEffect(() => {
+    window.localStorage.setItem(FILTER_SECTION_STORAGE_KEY, JSON.stringify(openFilterSections))
+  }, [openFilterSections])
 
   useEffect(() => {
     let cancelled = false
@@ -884,6 +890,33 @@ function normalizeStoredFilters(value: unknown): BookSearchFilters {
     branchCodes: normalizeStoredStringList(stored.branchCodes, allowedBranches),
     minRating: normalizeStoredRating(stored.minRating),
     sort: normalizeStoredSort(stored.sort),
+  }
+}
+
+function getStoredFilterSections(): Record<FilterSectionKey, boolean> {
+  if (typeof window === 'undefined') return initialFilterSections
+
+  try {
+    const stored = window.localStorage.getItem(FILTER_SECTION_STORAGE_KEY)
+    if (!stored) return initialFilterSections
+
+    return normalizeStoredFilterSections(JSON.parse(stored))
+  } catch {
+    return initialFilterSections
+  }
+}
+
+function normalizeStoredFilterSections(value: unknown): Record<FilterSectionKey, boolean> {
+  if (!value || typeof value !== 'object') return initialFilterSections
+
+  const stored = value as Partial<Record<FilterSectionKey, unknown>>
+
+  return {
+    language: typeof stored.language === 'boolean' ? stored.language : initialFilterSections.language,
+    genre: typeof stored.genre === 'boolean' ? stored.genre : initialFilterSections.genre,
+    library: typeof stored.library === 'boolean' ? stored.library : initialFilterSections.library,
+    rating: typeof stored.rating === 'boolean' ? stored.rating : initialFilterSections.rating,
+    sort: typeof stored.sort === 'boolean' ? stored.sort : initialFilterSections.sort,
   }
 }
 
