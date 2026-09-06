@@ -700,11 +700,6 @@ button {
   color: #12664f;
 }
 
-.piki-link {
-  align-self: flex-start;
-  margin-top: 2px;
-}
-
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -737,16 +732,35 @@ button {
   height: 38px;
   place-items: center;
   color: #273031;
-  background: #eef3f1;
-  border: 1px solid #d2ded9;
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: 8px;
   cursor: pointer;
+}
+
+.icon-button:hover,
+.icon-button:focus-visible {
+  background: rgba(20, 114, 89, 0.07);
+  border-color: #d2ded9;
 }
 
 .close-button {
   position: absolute;
   top: 14px;
   right: 14px;
+}
+
+.details-cover-column {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  width: 220px;
+}
+
+.details-link {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 14px;
 }
 
 .details-cover {
@@ -1081,6 +1095,11 @@ button {
     gap: 16px;
     max-height: calc(100vh - 20px);
     padding: 16px;
+  }
+
+  .details-cover-column {
+    width: 100%;
+    max-width: 190px;
   }
 
   .details-cover {

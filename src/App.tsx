@@ -70,7 +70,15 @@ function App() {
   }, [uiLanguage])
 
   useEffect(() => {
-    window.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters))
+    window.localStorage.setItem(
+      FILTER_STORAGE_KEY,
+      JSON.stringify({
+        languageCodes: filters.languageCodes,
+        genreValues: filters.genreValues,
+        branchCodes: filters.branchCodes,
+        sort: filters.sort,
+      }),
+    )
   }, [filters])
 
   useEffect(() => {
@@ -729,7 +737,13 @@ function BookDetailsPanel({
           <X size={20} aria-hidden="true" />
         </button>
 
-        <BookCover book={displayBook} variant="detail" uiLanguage={uiLanguage} />
+        <div className="details-cover-column">
+          <BookCover book={displayBook} variant="detail" uiLanguage={uiLanguage} />
+          <a className="piki-link details-link" href={displayBook.pikiUrl} target="_blank" rel="noreferrer">
+            {t.openInPiki}
+            <ExternalLink size={16} aria-hidden="true" />
+          </a>
+        </div>
 
         <div className="details-main">
           <div className="details-heading piki-details-heading">
@@ -780,10 +794,6 @@ function BookDetailsPanel({
             />
           </dl>
 
-          <a className="piki-link details-link" href={displayBook.pikiUrl} target="_blank" rel="noreferrer">
-            {t.openInPiki}
-            <ExternalLink size={16} aria-hidden="true" />
-          </a>
         </div>
       </section>
     </div>
@@ -913,7 +923,7 @@ function normalizeStoredFilters(value: unknown): BookSearchFilters {
   const allowedBranches = new Set(TAMPERE_BRANCHES.map((branch) => branch.code))
 
   return {
-    query: typeof stored.query === 'string' ? stored.query.trim() : initialFilters.query,
+    query: initialFilters.query,
     languageCodes: normalizeStoredStringList(stored.languageCodes, allowedLanguages),
     genreValues: normalizeStoredStringList(stored.genreValues, allowedGenres),
     branchCodes: normalizeStoredStringList(stored.branchCodes, allowedBranches),
