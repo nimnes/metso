@@ -9,7 +9,7 @@ export const UI_LANGUAGES: Array<{ value: UiLanguage; label: string }> = [
 
 export const translations = {
   en: {
-    appTitle: 'Tampere library book finder',
+    appTitle: 'Metso',
     searchPlaceholder: 'Search title, author, subject or ISBN',
     searchAriaLabel: 'Search books',
     searchButton: 'Search',
@@ -35,6 +35,7 @@ export const translations = {
     sortNewest: 'Newest',
     sortOldest: 'Oldest',
     sortTitle: 'Title',
+    sortRating: 'Rating',
     searching: 'Searching PIKI, Open Library and Hardcover...',
     resultCount: (shown: number, total: number) => `${shown} shown from ${total} PIKI matches`,
     searchErrorPrefix: 'Could not search right now:',
@@ -68,8 +69,10 @@ export const translations = {
     paginationLabel: 'Results pages',
     previousPage: 'Previous',
     publicRatings: 'Public ratings',
+    ratingSourceFinna: 'Finna',
     ratingSourceOpenLibrary: 'Open Library',
     ratingSourceHardcover: 'Hardcover',
+    topLoanedBook: 'Top-loaned PIKI book',
     bookLanguages: {
       '': 'Any language',
       fin: 'Finnish',
@@ -83,7 +86,7 @@ export const translations = {
     },
   },
   ru: {
-    appTitle: 'Поиск книг в библиотеках Тампере',
+    appTitle: 'Metso',
     searchPlaceholder: 'Название, автор, тема или ISBN',
     searchAriaLabel: 'Поиск книг',
     searchButton: 'Найти',
@@ -109,6 +112,7 @@ export const translations = {
     sortNewest: 'Сначала новые',
     sortOldest: 'Сначала старые',
     sortTitle: 'По названию',
+    sortRating: 'По рейтингу',
     searching: 'Ищем в PIKI, Open Library и Hardcover...',
     resultCount: (shown: number, total: number) => `${shown} из ${total} результатов PIKI`,
     searchErrorPrefix: 'Сейчас не удалось выполнить поиск:',
@@ -142,8 +146,10 @@ export const translations = {
     paginationLabel: 'Страницы результатов',
     previousPage: 'Предыдущая',
     publicRatings: 'Публичные рейтинги',
+    ratingSourceFinna: 'Finna',
     ratingSourceOpenLibrary: 'Open Library',
     ratingSourceHardcover: 'Hardcover',
+    topLoanedBook: 'Популярная книга PIKI',
     bookLanguages: {
       '': 'Любой язык',
       fin: 'Финский',

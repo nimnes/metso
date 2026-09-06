@@ -31,8 +31,24 @@ const CACHE_PREFIX = 'metso-openlibrary-v1:'
 const CACHE_TTL = 1000 * 60 * 60 * 24 * 14
 
 export async function enrichBooksWithOpenLibrary(books: Book[]): Promise<Book[]> {
-  const settled = await Promise.allSettled(books.map(enrichBook))
+  const settled = await Promise.allSettled(books.map(enrichBookWithOpenLibrary))
   return books.map((book, index) => (settled[index].status === 'fulfilled' ? settled[index].value : book))
+}
+
+export async function enrichBookWithOpenLibrary(book: Book): Promise<Book> {
+  const cacheKey = `${CACHE_PREFIX}${book.isbns[0] || book.title}:${book.publicationYear || ''}`
+  const cached = readCache(cacheKey)
+  if (cached) {
+    return mergeEnrichment(book, cached)
+  }
+
+  const enrichment = book.isbns.length ? await byIsbn(book.isbns[0]) : await bySearch(book)
+  if (enrichment) {
+    writeCache(cacheKey, enrichment)
+    return mergeEnrichment(book, enrichment)
+  }
+
+  return book
 }
 
 export async function getOpenLibraryDescription(isbn?: string): Promise<string | undefined> {
@@ -51,22 +67,6 @@ export async function getOpenLibraryDescription(isbn?: string): Promise<string |
   const work = (await workResponse.json()) as WorkResponse
   if (typeof work.description === 'string') return work.description
   return work.description?.value
-}
-
-async function enrichBook(book: Book): Promise<Book> {
-  const cacheKey = `${CACHE_PREFIX}${book.isbns[0] || book.title}:${book.publicationYear || ''}`
-  const cached = readCache(cacheKey)
-  if (cached) {
-    return mergeEnrichment(book, cached)
-  }
-
-  const enrichment = book.isbns.length ? await byIsbn(book.isbns[0]) : await bySearch(book)
-  if (enrichment) {
-    writeCache(cacheKey, enrichment)
-    return mergeEnrichment(book, enrichment)
-  }
-
-  return book
 }
 
 async function byIsbn(isbn: string): Promise<Partial<Book> | undefined> {
@@ -141,7 +141,7 @@ function mergeEnrichment(book: Book, enrichment: Partial<Book>): Book {
 }
 
 function chooseBestRating(ratings?: Book['ratings']): BookRating | undefined {
-  return ratings?.openlibrary ?? ratings?.hardcover
+  return ratings?.openlibrary ?? ratings?.hardcover ?? ratings?.finna
 }
 
 function unique<T>(values: Array<T | undefined>): T[] {

@@ -510,16 +510,31 @@ button {
 }
 
 .book-copy h2 {
-  display: -webkit-box;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   margin: 0;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
   color: #111315;
   font-family: Georgia, "Times New Roman", serif;
   font-size: 1.36rem;
   font-weight: 700;
   line-height: 1.12;
+}
+
+.book-copy h2 span:first-child {
+  display: -webkit-box;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.top-loaned-mark {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  color: #147259;
+  line-height: 1;
 }
 
 .authors {
@@ -626,6 +641,11 @@ button {
 .rating-source-hardcover {
   color: #fffdfa;
   background: #1d5860;
+}
+
+.rating-source-finna {
+  color: #fffdfa;
+  background: #1265a8;
 }
 
 .branches {

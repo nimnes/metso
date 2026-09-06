@@ -18,7 +18,7 @@ export async function enrichBooksWithHardcover(books: Book[]): Promise<Book[]> {
 
   for (const book of books) {
     try {
-      enriched.push(await enrichBook(book))
+      enriched.push(await enrichBookWithHardcover(book))
     } catch {
       enriched.push(book)
     }
@@ -27,12 +27,7 @@ export async function enrichBooksWithHardcover(books: Book[]): Promise<Book[]> {
   return enriched
 }
 
-export async function getHardcoverDescription(book: Pick<Book, 'authors' | 'isbns' | 'publicationYear' | 'title'>): Promise<string | undefined> {
-  const enrichment = await fetchHardcoverEnrichment(book)
-  return cleanText(enrichment?.description)
-}
-
-async function enrichBook(book: Book): Promise<Book> {
+export async function enrichBookWithHardcover(book: Book): Promise<Book> {
   const cacheKey = `${CACHE_PREFIX}${book.isbns[0] || book.title}:${book.publicationYear || ''}`
   const cached = readCache(cacheKey)
   if (cached) return mergeEnrichment(book, cached)
@@ -42,6 +37,11 @@ async function enrichBook(book: Book): Promise<Book> {
 
   writeCache(cacheKey, enrichment)
   return mergeEnrichment(book, enrichment)
+}
+
+export async function getHardcoverDescription(book: Pick<Book, 'authors' | 'isbns' | 'publicationYear' | 'title'>): Promise<string | undefined> {
+  const enrichment = await fetchHardcoverEnrichment(book)
+  return cleanText(enrichment?.description)
 }
 
 async function fetchHardcoverEnrichment(book: Pick<Book, 'authors' | 'isbns' | 'publicationYear' | 'title'>): Promise<HardcoverResponse | undefined> {
@@ -86,7 +86,7 @@ function mergeEnrichment(book: Book, enrichment: HardcoverResponse): Book {
 }
 
 function chooseBestRating(ratings?: Book['ratings']): BookRating | undefined {
-  return ratings?.openlibrary ?? ratings?.hardcover
+  return ratings?.openlibrary ?? ratings?.hardcover ?? ratings?.finna
 }
 
 function unique<T>(values: Array<T | undefined>): T[] {

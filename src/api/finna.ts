@@ -1,6 +1,7 @@
 import { TAMPERE_CITY_CODE, TAMPERE_HOLDING_LABELS } from '../data/tampereBranches'
 import { GENRE_OPTIONS } from '../data/genreOptions'
-import type { Book, BookDetails, BookSearchFilters, LibraryPresence } from '../types'
+import { TOP_LOANED_BOOK_IDENTIFIER_SET } from '../data/topLoanedBooks'
+import type { Book, BookDetails, BookRating, BookSearchFilters, LibraryPresence } from '../types'
 
 const FINNA_API_BASE = 'https://api.finna.fi/v1'
 const PIKI_BASE = 'https://piki.finna.fi'
@@ -27,6 +28,10 @@ type FinnaRecord = {
   cleanIsbn?: string
   buildings?: FinnaTranslatedField[]
   recordPage?: string
+  rating?: {
+    average?: number
+    count?: number
+  }
   summary?: string[]
   contents?: string[]
   physicalDescriptions?: string[]
@@ -63,6 +68,7 @@ const REQUESTED_FIELDS = [
   'cleanIsbn',
   'buildings',
   'recordPage',
+  'rating',
   'rawData',
 ]
 
@@ -140,6 +146,7 @@ export async function getFinnaBookDetails(finnaId: string): Promise<BookDetails>
 
 function normalizeFinnaBook(record: FinnaRecord): Book {
   const isbns = normalizeIsbns([...(record.isbns ?? []), record.cleanIsbn].filter(Boolean) as string[])
+  const finnaRating = normalizeFinnaRating(record.rating)
   const coverUrls = unique([
     ...(record.images ?? []).map((image) => `${PIKI_BASE}${image}`),
     ...isbns.map(openLibraryCoverUrl).filter(Boolean),
@@ -157,9 +164,26 @@ function normalizeFinnaBook(record: FinnaRecord): Book {
     formats: (record.formats ?? []).map((format) => format.translated),
     coverUrl: coverUrls[0],
     coverUrls,
+    ratings: finnaRating ? { finna: finnaRating } : undefined,
+    rating: finnaRating,
+    topLoaned: hasTopLoanedIdentifier(isbns),
     branches: normalizeBranches(record),
     pikiUrl: record.recordPage ? `${PIKI_BASE}${record.recordPage}` : `${PIKI_BASE}/Record/${record.id}`,
   }
+}
+
+function normalizeFinnaRating(rating?: FinnaRecord['rating']): BookRating | undefined {
+  if (!rating?.average || !rating.count) return undefined
+
+  return {
+    value: rating.average > 5 ? rating.average / 20 : rating.average,
+    count: rating.count,
+    source: 'finna',
+  }
+}
+
+function hasTopLoanedIdentifier(identifiers: string[]): boolean {
+  return identifiers.some((identifier) => TOP_LOANED_BOOK_IDENTIFIER_SET.has(identifier))
 }
 
 function normalizeFinnaBookDetails(record: FinnaRecord): BookDetails {

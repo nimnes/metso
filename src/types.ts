@@ -1,9 +1,9 @@
-export type SortMode = 'relevance' | 'newest' | 'oldest' | 'title'
+export type SortMode = 'relevance' | 'newest' | 'oldest' | 'title' | 'rating'
 
 export type BookRating = {
   value: number
   count: number
-  source: 'openlibrary' | 'hardcover'
+  source: 'finna' | 'openlibrary' | 'hardcover'
 }
 
 export type RatingSource = BookRating['source']
@@ -27,6 +27,7 @@ export type Book = {
   coverUrls: string[]
   ratings?: Partial<Record<RatingSource, BookRating>>
   rating?: BookRating
+  topLoaned?: boolean
   branches: LibraryPresence[]
   pikiUrl: string
 }
