@@ -85,6 +85,7 @@ export async function searchFinna(filters: BookSearchFilters, page = 1): Promise
   params.set('page', String(page))
 
   REQUESTED_FIELDS.forEach((field) => params.append('field[]', field))
+  params.append('filter[]', 'finna.deduplication:"0"')
   params.append('filter[]', `building:"${TAMPERE_CITY_CODE}"`)
   filters.branchCodes
     .filter((branchCode) => branchCode.startsWith('holdings:'))
