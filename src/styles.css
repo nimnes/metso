@@ -90,34 +90,63 @@ button {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 6px;
-  padding: 4px;
-  background: #eef3f1;
-  border: 1px solid #cfd9d5;
-  border-radius: 999px;
+  background: transparent;
 }
 
 .flag-button {
+  position: relative;
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 28px;
   place-items: center;
   padding: 0;
   background: transparent;
   border: 0;
   outline: 0;
-  border-radius: 50%;
+  border-radius: 4px;
   cursor: pointer;
 }
 
-.flag-button span {
-  font-size: 1.28rem;
-  line-height: 1;
+.flag-button + .flag-button {
+  margin-left: 11px;
+}
+
+.flag-button + .flag-button::before {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: -6px;
+  width: 1px;
+  background: #d7d1c8;
+  content: '';
+}
+
+.flag {
+  display: block;
+  width: 26px;
+  height: 17px;
+  overflow: hidden;
+  border: 1px solid rgba(23, 25, 28, 0.16);
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(42, 54, 50, 0.12);
+}
+
+.flag-en {
+  background:
+    linear-gradient(33deg, transparent 43%, #fffdfa 43% 48%, #c8102e 48% 53%, #fffdfa 53% 58%, transparent 58%),
+    linear-gradient(-33deg, transparent 43%, #fffdfa 43% 48%, #c8102e 48% 53%, #fffdfa 53% 58%, transparent 58%),
+    linear-gradient(90deg, transparent 40%, #fffdfa 40% 45%, #c8102e 45% 55%, #fffdfa 55% 60%, transparent 60%),
+    linear-gradient(0deg, transparent 35%, #fffdfa 35% 42%, #c8102e 42% 58%, #fffdfa 58% 65%, transparent 65%),
+    #012169;
+}
+
+.flag-ru {
+  background: linear-gradient(to bottom, #fff 0 33.33%, #1f57a4 33.33% 66.66%, #d52b1e 66.66% 100%);
 }
 
 .flag-button:hover,
 .flag-button:focus-visible {
-  background: #dbe8e4;
+  background: #eef3f1;
 }
 
 .flag-button:focus-visible {
@@ -126,8 +155,12 @@ button {
 }
 
 .flag-button[aria-pressed='true'] {
-  background: #fffdfa;
-  box-shadow: 0 2px 7px rgba(42, 54, 50, 0.16);
+  background: #eef3f1;
+}
+
+.flag-button[aria-pressed='true'] .flag {
+  border-color: #12664f;
+  box-shadow: 0 0 0 2px rgba(18, 102, 79, 0.18);
 }
 
 .search-row {

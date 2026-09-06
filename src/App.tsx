@@ -23,7 +23,7 @@ import type { UiLanguage } from './i18n'
 import type { Book, BookDetails, BookSearchFilters, LibraryPresence, RatingSource, SearchState, SortMode } from './types'
 
 const initialFilters: BookSearchFilters = {
-  query: 'mestar* margarita',
+  query: '',
   languageCodes: [],
   genreValues: [],
   branchCodes: [],
@@ -409,7 +409,7 @@ function LanguageSwitcher({ currentLanguage, onChange }: { currentLanguage: UiLa
           onClick={() => onChange(language.value)}
           title={language.label}
         >
-          <span aria-hidden="true">{language.flag}</span>
+          <span className={`flag flag-${language.value}`} aria-hidden="true" />
         </button>
       ))}
     </div>
@@ -840,7 +840,7 @@ function normalizeStoredFilters(value: unknown): BookSearchFilters {
   const allowedBranches = new Set(TAMPERE_BRANCHES.map((branch) => branch.code))
 
   return {
-    query: typeof stored.query === 'string' && stored.query.trim() ? stored.query.trim() : initialFilters.query,
+    query: typeof stored.query === 'string' ? stored.query.trim() : initialFilters.query,
     languageCodes: normalizeStoredStringList(stored.languageCodes, allowedLanguages),
     genreValues: normalizeStoredStringList(stored.genreValues, allowedGenres),
     branchCodes: normalizeStoredStringList(stored.branchCodes, allowedBranches),

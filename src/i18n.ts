@@ -2,9 +2,9 @@ export type UiLanguage = 'en' | 'ru'
 
 export const UI_LANGUAGE_STORAGE_KEY = 'metso-ui-language'
 
-export const UI_LANGUAGES: Array<{ value: UiLanguage; label: string; flag: string }> = [
-  { value: 'en', label: 'English', flag: '🇬🇧' },
-  { value: 'ru', label: 'Русский', flag: '🇷🇺' },
+export const UI_LANGUAGES: Array<{ value: UiLanguage; label: string }> = [
+  { value: 'en', label: 'English' },
+  { value: 'ru', label: 'Русский' },
 ]
 
 export const translations = {
