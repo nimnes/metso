@@ -27,6 +27,10 @@ type RatingsResponse = {
   }
 }
 
+type OpenLibraryApiResponse = Partial<Book> & {
+  description?: string
+}
+
 const CACHE_PREFIX = 'metso-openlibrary-v1:'
 const CACHE_TTL = 1000 * 60 * 60 * 24 * 14
 
@@ -54,6 +58,9 @@ export async function enrichBookWithOpenLibrary(book: Book): Promise<Book> {
 export async function getOpenLibraryDescription(isbn?: string): Promise<string | undefined> {
   if (!isbn) return undefined
 
+  const enrichment = await fetchOpenLibraryApi({ isbn })
+  if (enrichment !== undefined) return enrichment?.description
+
   const editionResponse = await fetch(`https://openlibrary.org/isbn/${isbn}.json`)
   if (!editionResponse.ok) return undefined
 
@@ -70,6 +77,9 @@ export async function getOpenLibraryDescription(isbn?: string): Promise<string |
 }
 
 async function byIsbn(isbn: string): Promise<Partial<Book> | undefined> {
+  const enrichment = await fetchOpenLibraryApi({ isbn })
+  if (enrichment !== undefined) return enrichment ?? undefined
+
   const response = await fetch(`https://openlibrary.org/isbn/${isbn}.json`)
   if (!response.ok) return undefined
 
@@ -82,6 +92,9 @@ async function byIsbn(isbn: string): Promise<Partial<Book> | undefined> {
 }
 
 async function bySearch(book: Book): Promise<Partial<Book> | undefined> {
+  const enrichment = await fetchOpenLibraryApi({ title: book.title, author: book.authors[0] })
+  if (enrichment !== undefined) return enrichment ?? undefined
+
   const params = new URLSearchParams()
   params.set('title', book.title)
   if (book.authors[0]) params.set('author', book.authors[0])
@@ -117,6 +130,24 @@ async function getRating(workKey: string): Promise<BookRating | undefined> {
   if (!average || !count) return undefined
 
   return { value: average, count, source: 'openlibrary' }
+}
+
+async function fetchOpenLibraryApi(params: { author?: string; isbn?: string; title?: string }): Promise<OpenLibraryApiResponse | null | undefined> {
+  const searchParams = new URLSearchParams()
+  if (params.isbn) searchParams.set('isbn', params.isbn)
+  if (params.title) searchParams.set('title', params.title)
+  if (params.author) searchParams.set('author', params.author)
+
+  try {
+    const response = await fetch(`/api/openlibrary?${searchParams.toString()}`)
+    if (response.status === 404) return undefined
+    if (response.status === 204) return null
+    if (!response.ok || !response.headers.get('content-type')?.includes('application/json')) return undefined
+
+    return (await response.json()) as OpenLibraryApiResponse
+  } catch {
+    return undefined
+  }
 }
 
 function mergeEnrichment(book: Book, enrichment: Partial<Book>): Book {
