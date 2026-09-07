@@ -11,6 +11,7 @@ import {
   Search,
   X,
 } from 'lucide-react'
+import { applyCachedBookEnrichment, hasCheckedRatingSource, rememberBookEnrichment } from './api/bookEnrichmentCache'
 import { FINNA_PAGE_SIZE, getFinnaBookDetails, searchFinna } from './api/finna'
 import { enrichBookWithHardcover, getHardcoverDescription } from './api/hardcover'
 import { enrichBookWithMostRecommended } from './api/mostRecommendedBooks'
@@ -97,9 +98,11 @@ function App() {
       try {
         const result = await searchFinna(catalogueFilters, currentPage)
         if (cancelled) return
-        setState({ loading: false, enriching: result.books.length, total: result.total, books: result.books })
+        const books = result.books.map(applyCachedBookEnrichment)
+        books.forEach((book) => rememberBookEnrichment(book, book.ratings?.finna ? 'finna' : undefined))
+        setState({ loading: false, enriching: books.length, total: result.total, books })
 
-        result.books.forEach((book) => {
+        books.forEach((book) => {
           enrichBookRatings(
             book,
             (enrichedBook) => {
@@ -422,18 +425,26 @@ async function enrichBookRatings(book: Book, onUpdate: (book: Book) => void, onC
   let enrichedBook = book
 
   try {
-    try {
-      enrichedBook = await enrichBookWithOpenLibrary(enrichedBook)
-      onUpdate(enrichedBook)
-    } catch {
-      // Keep trying other optional enrichment sources.
+    if (!hasCheckedRatingSource(enrichedBook, 'openlibrary')) {
+      try {
+        enrichedBook = await enrichBookWithOpenLibrary(enrichedBook)
+        rememberBookEnrichment(enrichedBook, 'openlibrary')
+        onUpdate(enrichedBook)
+      } catch {
+        rememberBookEnrichment(enrichedBook, 'openlibrary')
+        // Keep trying other optional enrichment sources.
+      }
     }
 
-    try {
-      enrichedBook = await enrichBookWithHardcover(enrichedBook)
-      onUpdate(enrichedBook)
-    } catch {
-      // Ratings are optional enrichment; catalogue results should stay usable.
+    if (!hasCheckedRatingSource(enrichedBook, 'hardcover')) {
+      try {
+        enrichedBook = await enrichBookWithHardcover(enrichedBook)
+        rememberBookEnrichment(enrichedBook, 'hardcover')
+        onUpdate(enrichedBook)
+      } catch {
+        rememberBookEnrichment(enrichedBook, 'hardcover')
+        // Ratings are optional enrichment; catalogue results should stay usable.
+      }
     }
 
     try {
