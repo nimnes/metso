@@ -34,6 +34,11 @@ export const GENRE_OPTIONS: GenreOption[] = [
     finnaValues: ['Nuortenkirjallisuus', 'Ungdomslitteratur'],
   },
   {
+    value: 'easy-language',
+    labels: { en: 'Easy language', ru: 'Книги на простом языке' },
+    finnaValues: ['Selkokirjat'],
+  },
+  {
     value: 'mystery-thriller',
     labels: { en: 'Mystery and thriller', ru: 'Детективы и триллеры' },
     finnaValues: ['Jännityskirjallisuus', 'Thrillers (litteratur)', 'Rikoskirjallisuus'],

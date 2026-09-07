@@ -47,8 +47,8 @@ function App() {
   const [filters, setFilters] = useState<BookSearchFilters>(getStoredFilters)
   const [draftQuery, setDraftQuery] = useState(filters.query)
   const [currentPage, setCurrentPage] = useState(1)
-  const [state, setState] = useState<SearchState>({ loading: false, enriching: 0, total: 0, books: [] })
-  const [hasSearched, setHasSearched] = useState(false)
+  const [state, setState] = useState<SearchState>({ loading: true, enriching: 0, total: 0, books: [] })
+  const [hasSearched, setHasSearched] = useState(true)
   const [selectedBook, setSelectedBook] = useState<Book | undefined>()
   const [detailState, setDetailState] = useState<{ loading: boolean; error?: string; details?: BookDetails }>({ loading: false })
   const [uiLanguage, setUiLanguage] = useState(getStoredUiLanguage)
@@ -781,7 +781,7 @@ function BookDetailsPanel({
         </button>
 
         <div className="details-cover-column">
-          <BookCover book={displayBook} variant="detail" uiLanguage={uiLanguage} />
+          <BookCover book={displayBook} markers={<BookMarkers book={displayBook} uiLanguage={uiLanguage} />} variant="detail" uiLanguage={uiLanguage} />
           <a className="piki-link details-link" href={displayBook.pikiUrl} target="_blank" rel="noreferrer">
             {t.openInPiki}
             <ExternalLink size={16} aria-hidden="true" />
@@ -909,16 +909,21 @@ function BookMarkers({ book, uiLanguage }: { book: Book; uiLanguage: UiLanguage 
 
 function Ratings({ ratings, uiLanguage }: { ratings?: Book['ratings']; uiLanguage: UiLanguage }) {
   const t = translations[uiLanguage]
+  const availableRatings = RATING_SOURCES.flatMap((source) => {
+    const rating = ratings?.[source]
+    return rating ? [{ source, rating }] : []
+  })
+
+  if (!availableRatings.length) return null
 
   return (
     <span className="rating-list" aria-label={t.publicRatings}>
-      {RATING_SOURCES.map((source) => {
-        const rating = ratings?.[source]
+      {availableRatings.map(({ source, rating }) => {
         return (
           <span className="rating" key={source}>
             <RatingSourceMark source={source} uiLanguage={uiLanguage} />
-            <strong>{rating ? rating.value.toFixed(1) : '--'}</strong>
-            {rating ? <small>({formatRatingCount(rating.count)})</small> : null}
+            <strong>{rating.value.toFixed(1)}</strong>
+            <small>({formatRatingCount(rating.count)})</small>
           </span>
         )
       })}
@@ -934,6 +939,10 @@ function TopLoanedMark({ book, uiLanguage }: { book: Book; uiLanguage: UiLanguag
   return (
     <span className="top-loaned-mark" title={label} aria-label={label}>
       <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          className="mark-outline"
+          d="M12 2.2 14.3 4l2.9-.1 1.1 2.7 2.5 1.5-.7 2.9.7 2.8-2.5 1.6-1.1 2.7-2.9-.1-2.3 1.8L9.7 18l-2.9.1-1.1-2.7-2.5-1.6.7-2.8-.7-2.9 2.5-1.5 1.1-2.7 2.9.1L12 2.2Z"
+        />
         <path
           fill="currentColor"
           d="M12 2.2 14.3 4l2.9-.1 1.1 2.7 2.5 1.5-.7 2.9.7 2.8-2.5 1.6-1.1 2.7-2.9-.1-2.3 1.8L9.7 18l-2.9.1-1.1-2.7-2.5-1.6.7-2.8-.7-2.9 2.5-1.5 1.1-2.7 2.9.1L12 2.2Z"
@@ -952,6 +961,10 @@ function RecommendedMark({ book, uiLanguage }: { book: Book; uiLanguage: UiLangu
   return (
     <span className="recommended-mark" title={label} aria-label={label}>
       <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          className="mark-outline"
+          d="M12 2.2 14.3 4l2.9-.1 1.1 2.7 2.5 1.5-.7 2.9.7 2.8-2.5 1.6-1.1 2.7-2.9-.1-2.3 1.8L9.7 18l-2.9.1-1.1-2.7-2.5-1.6.7-2.8-.7-2.9 2.5-1.5 1.1-2.7 2.9.1L12 2.2Z"
+        />
         <path
           fill="currentColor"
           d="M12 2.2 14.3 4l2.9-.1 1.1 2.7 2.5 1.5-.7 2.9.7 2.8-2.5 1.6-1.1 2.7-2.9-.1-2.3 1.8L9.7 18l-2.9.1-1.1-2.7-2.5-1.6.7-2.8-.7-2.9 2.5-1.5 1.1-2.7 2.9.1L12 2.2Z"

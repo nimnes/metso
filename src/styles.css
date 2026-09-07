@@ -529,12 +529,8 @@ button {
   top: 6px;
   right: 6px;
   display: inline-flex;
-  gap: 3px;
+  gap: 2px;
   align-items: center;
-  padding: 3px;
-  background: rgba(255, 253, 250, 0.92);
-  border-radius: 999px;
-  box-shadow: 0 4px 14px rgba(31, 40, 42, 0.14);
 }
 
 .top-loaned-mark,
@@ -542,7 +538,21 @@ button {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
+  filter: drop-shadow(0 2px 4px rgba(31, 40, 42, 0.22));
   line-height: 1;
+}
+
+.top-loaned-mark svg,
+.recommended-mark svg {
+  width: 32px;
+  height: 32px;
+}
+
+.mark-outline {
+  fill: none;
+  stroke: #fffdfa;
+  stroke-linejoin: round;
+  stroke-width: 2.4px;
 }
 
 .top-loaned-mark {
@@ -550,7 +560,7 @@ button {
 }
 
 .recommended-mark {
-  color: #62b5e5;
+  color: #d39a14;
 }
 
 .authors {
@@ -780,6 +790,7 @@ button {
 }
 
 .details-cover {
+  position: relative;
   display: grid;
   width: 220px;
   height: 322px;
