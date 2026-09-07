@@ -47,7 +47,8 @@ function App() {
   const [filters, setFilters] = useState<BookSearchFilters>(getStoredFilters)
   const [draftQuery, setDraftQuery] = useState(filters.query)
   const [currentPage, setCurrentPage] = useState(1)
-  const [state, setState] = useState<SearchState>({ loading: true, enriching: 0, total: 0, books: [] })
+  const [state, setState] = useState<SearchState>({ loading: false, enriching: 0, total: 0, books: [] })
+  const [hasSearched, setHasSearched] = useState(false)
   const [selectedBook, setSelectedBook] = useState<Book | undefined>()
   const [detailState, setDetailState] = useState<{ loading: boolean; error?: string; details?: BookDetails }>({ loading: false })
   const [uiLanguage, setUiLanguage] = useState(getStoredUiLanguage)
@@ -87,6 +88,8 @@ function App() {
   }, [openFilterSections])
 
   useEffect(() => {
+    if (!hasSearched) return
+
     let cancelled = false
 
     async function runSearch() {
@@ -138,7 +141,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [catalogueFilters, currentPage])
+  }, [catalogueFilters, currentPage, hasSearched])
 
   useEffect(() => {
     if (!selectedBook) return
@@ -216,6 +219,7 @@ function App() {
 
   function submitSearch(event: React.FormEvent) {
     event.preventDefault()
+    setHasSearched(true)
     setCurrentPage(1)
     setFilters((current) => ({ ...current, query: draftQuery.trim() }))
   }
@@ -250,6 +254,7 @@ function App() {
 
   const searchAuthor = useCallback((author: string) => {
     setDraftQuery(author)
+    setHasSearched(true)
     setCurrentPage(1)
     setFilters((current) => ({ ...current, query: author }))
     setSelectedBook(undefined)
@@ -260,6 +265,7 @@ function App() {
     if (!matchingBranch) return
 
     setCurrentPage(1)
+    setHasSearched(true)
     setFilters((current) => ({ ...current, branchCodes: [matchingBranch.code] }))
     setSelectedBook(undefined)
   }, [])
@@ -353,9 +359,11 @@ function App() {
 
         <div className="results-main">
           <div ref={resultsTopRef} />
-          <section className="status-bar" aria-live="polite">
-            <span>{state.loading ? t.searching : t.resultCount(visibleBookCount, state.total)}</span>
-          </section>
+          {hasSearched ? (
+            <section className="status-bar" aria-live="polite">
+              <span>{state.loading ? t.searching : t.resultCount(visibleBookCount, state.total)}</span>
+            </section>
+          ) : null}
 
           {state.error ? (
             <div className="notice">
@@ -369,7 +377,7 @@ function App() {
             ))}
           </section>
 
-          {!state.error && state.total > FINNA_PAGE_SIZE ? (
+          {hasSearched && !state.error && state.total > FINNA_PAGE_SIZE ? (
             <Pagination
               currentPage={currentPage}
               disabled={state.loading}
@@ -379,7 +387,7 @@ function App() {
             />
           ) : null}
 
-          {!state.loading && !state.error && visibleBookCount === 0 ? (
+          {hasSearched && !state.loading && !state.error && visibleBookCount === 0 ? (
             <div className="empty">
               <BookOpen size={32} aria-hidden="true" />
               <p>{t.noMatches}</p>
