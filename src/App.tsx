@@ -9,6 +9,7 @@ import {
   ChevronsRight,
   ExternalLink,
   Search,
+  Share2,
   X,
 } from 'lucide-react'
 import { applyCachedBookEnrichment, hasCheckedRatingSource, rememberBookEnrichment } from './api/bookEnrichmentCache'
@@ -773,6 +774,7 @@ function BookDetailsPanel({
   const isbnLine = displayBook.isbns[0] ? formatIsbn(displayBook.isbns[0]) : undefined
   const formatLine = unique([formatBookFormat(displayBook.formats[0], uiLanguage), details?.edition].filter(Boolean) as string[]).join(', ')
   const [showLoadingIndicator, setShowLoadingIndicator] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
 
   useEffect(() => {
     if (!detailState.loading) {
@@ -783,6 +785,31 @@ function BookDetailsPanel({
     const timeoutId = window.setTimeout(() => setShowLoadingIndicator(true), 300)
     return () => window.clearTimeout(timeoutId)
   }, [detailState.loading])
+
+  async function shareBook() {
+    const shareData = {
+      title: displayBook.title,
+      text: primaryAuthor ? `${displayBook.title} - ${primaryAuthor}` : displayBook.title,
+      url: displayBook.pikiUrl,
+    }
+
+    try {
+      if (navigator.share && navigator.canShare?.(shareData) !== false) {
+        await navigator.share(shareData)
+        return
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
+    }
+
+    try {
+      await navigator.clipboard.writeText(displayBook.pikiUrl)
+      setShareCopied(true)
+      window.setTimeout(() => setShareCopied(false), 1800)
+    } catch {
+      window.open(displayBook.pikiUrl, '_blank', 'noopener,noreferrer')
+    }
+  }
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -797,6 +824,10 @@ function BookDetailsPanel({
             {t.openInPiki}
             <ExternalLink size={16} aria-hidden="true" />
           </a>
+          <button className="piki-link details-link share-link" type="button" onClick={shareBook}>
+            {shareCopied ? t.shareCopied : t.shareBook}
+            <Share2 size={16} aria-hidden="true" />
+          </button>
         </div>
 
         <div className="details-main">

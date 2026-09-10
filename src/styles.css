@@ -789,6 +789,17 @@ button {
   padding: 0 14px;
 }
 
+.share-link {
+  color: #12664f;
+  background: transparent;
+  border: 1px solid #c9d8d2;
+}
+
+.share-link:hover,
+.share-link:focus-visible {
+  background: rgba(18, 102, 79, 0.07);
+}
+
 .details-cover {
   position: relative;
   display: grid;
