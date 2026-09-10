@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react'
 import { applyCachedBookEnrichment, hasCheckedRatingSource, rememberBookEnrichment } from './api/bookEnrichmentCache'
+import { enrichBookWithFantLab } from './api/fantlab'
 import { FINNA_PAGE_SIZE, getFinnaBookDetails, searchFinna } from './api/finna'
 import { enrichBookWithHardcover, getHardcoverDescription } from './api/hardcover'
 import { enrichBookWithMostRecommended } from './api/mostRecommendedBooks'
@@ -437,6 +438,17 @@ async function enrichBookRatings(book: Book, onUpdate: (book: Book) => void, onC
       }
     }
 
+    if (isRussianBook(enrichedBook) && !hasCheckedRatingSource(enrichedBook, 'fantlab')) {
+      try {
+        enrichedBook = await enrichBookWithFantLab(enrichedBook)
+        rememberBookEnrichment(enrichedBook, 'fantlab')
+        onUpdate(enrichedBook)
+      } catch {
+        rememberBookEnrichment(enrichedBook, 'fantlab')
+        // FantLab is optional and may only cover some genres.
+      }
+    }
+
     if (!hasCheckedRatingSource(enrichedBook, 'hardcover')) {
       try {
         enrichedBook = await enrichBookWithHardcover(enrichedBook)
@@ -480,7 +492,17 @@ function sortDisplayedBooks(books: Book[], sort: SortMode, enriching: number): B
 }
 
 function getSortableRating(book: Book): number {
-  return book.rating?.value ?? book.ratings?.openlibrary?.value ?? book.ratings?.hardcover?.value ?? book.ratings?.finna?.value ?? -1
+  const rating = book.rating ?? book.ratings?.openlibrary ?? book.ratings?.fantlab ?? book.ratings?.hardcover ?? book.ratings?.finna
+  return rating ? normalizeSortableRating(rating) : -1
+}
+
+function normalizeSortableRating(rating: Book['rating']): number {
+  if (!rating) return -1
+  return rating.source === 'fantlab' ? rating.value / 2 : rating.value
+}
+
+function isRussianBook(book: Pick<Book, 'languages'>): boolean {
+  return book.languages.includes('rus')
 }
 
 async function getOptionalHardcoverDescription(book: Pick<Book, 'authors' | 'isbns' | 'publicationYear' | 'title'>): Promise<string | undefined> {
@@ -936,7 +958,7 @@ function LibraryMetadataRow({
   )
 }
 
-const RATING_SOURCES: RatingSource[] = ['openlibrary', 'hardcover', 'finna']
+const RATING_SOURCES: RatingSource[] = ['openlibrary', 'fantlab', 'hardcover', 'finna']
 
 function BookMarkers({ book, uiLanguage }: { book: Book; uiLanguage: UiLanguage }) {
   if (!book.topLoaned && !book.recommended) return null
@@ -1131,11 +1153,18 @@ function getLibraryDisplayName(name: string, uiLanguage: UiLanguage): string {
 
 function RatingSourceMark({ source, uiLanguage }: { source: RatingSource; uiLanguage: UiLanguage }) {
   const t = translations[uiLanguage]
-  const label = source === 'hardcover' ? t.ratingSourceHardcover : source === 'finna' ? t.ratingSourceFinna : t.ratingSourceOpenLibrary
+  const label =
+    source === 'hardcover'
+      ? t.ratingSourceHardcover
+      : source === 'finna'
+        ? t.ratingSourceFinna
+        : source === 'fantlab'
+          ? t.ratingSourceFantLab
+          : t.ratingSourceOpenLibrary
 
   return (
     <span className={`rating-source rating-source-${source}`} title={label} aria-label={label}>
-      {source === 'hardcover' ? 'H' : source === 'finna' ? 'FI' : 'OL'}
+      {source === 'hardcover' ? 'H' : source === 'finna' ? 'FI' : source === 'fantlab' ? 'FL' : 'OL'}
     </span>
   )
 }

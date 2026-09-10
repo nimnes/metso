@@ -86,7 +86,7 @@ function mergeEnrichment(book: Book, enrichment: HardcoverResponse): Book {
 }
 
 function chooseBestRating(ratings?: Book['ratings']): BookRating | undefined {
-  return ratings?.openlibrary ?? ratings?.hardcover ?? ratings?.finna
+  return ratings?.openlibrary ?? ratings?.fantlab ?? ratings?.hardcover ?? ratings?.finna
 }
 
 function unique<T>(values: Array<T | undefined>): T[] {

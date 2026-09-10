@@ -3,7 +3,7 @@ export type SortMode = 'relevance' | 'newest' | 'oldest' | 'title' | 'rating'
 export type BookRating = {
   value: number
   count: number
-  source: 'finna' | 'openlibrary' | 'hardcover'
+  source: 'finna' | 'openlibrary' | 'hardcover' | 'fantlab'
 }
 
 export type RatingSource = BookRating['source']

@@ -13,11 +13,13 @@ const CACHE_TTL = 1000 * 60 * 60 * 24 * 7
 const MAX_CACHE_SIZE = 200
 const SOURCE_CODES: Record<RatingSource, string> = {
   openlibrary: 'OL',
+  fantlab: 'FL',
   hardcover: 'H',
   finna: 'FI',
 }
 const CODE_SOURCES: Record<string, RatingSource> = {
   OL: 'openlibrary',
+  FL: 'fantlab',
   H: 'hardcover',
   FI: 'finna',
 }
@@ -26,8 +28,9 @@ export function applyCachedBookEnrichment(book: Book): Book {
   const cached = findCachedBookEnrichment(book)
   if (!cached) return book
 
+  const cachedRatings = isRussianBook(book) ? cached.ratings : omitRatingSource(cached.ratings, 'fantlab')
   const ratings = {
-    ...cached.ratings,
+    ...cachedRatings,
     ...book.ratings,
   }
   const coverUrls = unique([...(book.coverUrls ?? []), book.coverUrl, ...cached.coverUrls])
@@ -74,6 +77,16 @@ function findCachedBookEnrichment(book: Book): CachedBookEnrichment | undefined 
   if (!isbns.length) return undefined
 
   return readCache().find((entry) => isbns.includes(entry.isbn))
+}
+
+function isRussianBook(book: Pick<Book, 'languages'>): boolean {
+  return book.languages.includes('rus')
+}
+
+function omitRatingSource(ratings: CachedBookEnrichment['ratings'], source: RatingSource): CachedBookEnrichment['ratings'] {
+  const rest = { ...ratings }
+  delete rest[source]
+  return rest
 }
 
 function getPrimaryIsbn(book: Pick<Book, 'isbns'>): string | undefined {
@@ -176,7 +189,7 @@ function formatEntry(entry: CachedBookEnrichment): string {
 }
 
 function chooseBestRating(ratings?: Book['ratings']): BookRating | undefined {
-  return ratings?.openlibrary ?? ratings?.hardcover ?? ratings?.finna
+  return ratings?.openlibrary ?? ratings?.fantlab ?? ratings?.hardcover ?? ratings?.finna
 }
 
 function trimNumber(value: number): string {

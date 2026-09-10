@@ -664,6 +664,11 @@ button {
   background: #785221;
 }
 
+.rating-source-fantlab {
+  color: #fffdfa;
+  background: #9a2f23;
+}
+
 .rating-source-hardcover {
   color: #fffdfa;
   background: #1d5860;
