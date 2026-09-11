@@ -1,4 +1,5 @@
 import type { Book, BookRating, RatingSource } from '../types'
+import { shouldUseFantLab } from './fantlabEligibility'
 
 type CachedBookEnrichment = {
   checkedSources: RatingSource[]
@@ -28,7 +29,7 @@ export function applyCachedBookEnrichment(book: Book): Book {
   const cached = findCachedBookEnrichment(book)
   if (!cached) return book
 
-  const cachedRatings = isRussianBook(book) ? cached.ratings : omitRatingSource(cached.ratings, 'fantlab')
+  const cachedRatings = shouldUseFantLab(book) ? cached.ratings : omitRatingSource(cached.ratings, 'fantlab')
   const ratings = {
     ...cachedRatings,
     ...book.ratings,
@@ -77,10 +78,6 @@ function findCachedBookEnrichment(book: Book): CachedBookEnrichment | undefined 
   if (!isbns.length) return undefined
 
   return readCache().find((entry) => isbns.includes(entry.isbn))
-}
-
-function isRussianBook(book: Pick<Book, 'languages'>): boolean {
-  return book.languages.includes('rus')
 }
 
 function omitRatingSource(ratings: CachedBookEnrichment['ratings'], source: RatingSource): CachedBookEnrichment['ratings'] {

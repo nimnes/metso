@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { applyCachedBookEnrichment, hasCheckedRatingSource, rememberBookEnrichment } from './api/bookEnrichmentCache'
 import { enrichBookWithFantLab } from './api/fantlab'
+import { shouldUseFantLab } from './api/fantlabEligibility'
 import { FINNA_PAGE_SIZE, getFinnaBookDetails, searchFinna } from './api/finna'
 import { enrichBookWithHardcover, getHardcoverDescription } from './api/hardcover'
 import { enrichBookWithMostRecommended } from './api/mostRecommendedBooks'
@@ -438,7 +439,7 @@ async function enrichBookRatings(book: Book, onUpdate: (book: Book) => void, onC
       }
     }
 
-    if (isRussianBook(enrichedBook) && !hasCheckedRatingSource(enrichedBook, 'fantlab')) {
+    if (shouldUseFantLab(enrichedBook) && !hasCheckedRatingSource(enrichedBook, 'fantlab')) {
       try {
         enrichedBook = await enrichBookWithFantLab(enrichedBook)
         rememberBookEnrichment(enrichedBook, 'fantlab')
@@ -499,10 +500,6 @@ function getSortableRating(book: Book): number {
 function normalizeSortableRating(rating: Book['rating']): number {
   if (!rating) return -1
   return rating.source === 'fantlab' ? rating.value / 2 : rating.value
-}
-
-function isRussianBook(book: Pick<Book, 'languages'>): boolean {
-  return book.languages.includes('rus')
 }
 
 async function getOptionalHardcoverDescription(book: Pick<Book, 'authors' | 'isbns' | 'publicationYear' | 'title'>): Promise<string | undefined> {
