@@ -1,17 +1,21 @@
 # Metso
 
-Metso is a small web app for browsing books in Tampere city libraries. It uses the public Finna API for PIKI catalogue data and adds lightweight metadata from Open Library, Hardcover, and Kirjavälitys when available.
+Metso is a small web app for browsing books in Tampere city libraries. It uses the public Finna API for PIKI catalogue data and adds lightweight metadata from Open Library, Hardcover, FantLab, and Kirjavälitys when available.
 
 The goal is simple: make it easier to discover interesting books in nearby Tampere libraries, then open the official PIKI record when it is time to reserve or borrow.
 
 ## What It Does
 
 - Search the Tampere PIKI catalogue by title, author, subject, or ISBN.
-- Filter results by language, genre, library branch, and rating.
-- Browse paginated book results with covers, authors, publication years, ratings, and library presence.
+- Filter results by language, genre, and library branch.
+- Sort results by relevance, title, year, or public rating.
+- Browse paginated book results with covers, authors, publication years, ratings, and Tampere library presence.
 - Open a book details view with description, publication metadata, subjects, ISBN, and Tampere libraries.
+- Open public rating/review pages from supported rating badges.
+- Share a book link to the official PIKI record.
 - Open the official PIKI page for login, reservations, and live library actions.
 - Switch the interface between English and Russian.
+- Install the app to a phone home screen with app icons and a mobile-friendly detail view.
 
 ## Current Boundaries
 
@@ -31,8 +35,10 @@ The public Finna API is used for catalogue discovery, but it does not currently 
 
 - **Finna / PIKI**: catalogue search, book details, PIKI links, covers, branches, subjects, genres, languages, publication metadata.
 - **Open Library**: public ratings and cover fallback.
-- **Hardcover**: optional second rating source, queried through a Cloudflare Pages Function.
+- **Hardcover**: optional rating, cover, and description enrichment, queried through a Cloudflare Pages Function.
+- **FantLab**: optional ratings for English and Russian genre fiction, queried through a Cloudflare Pages Function.
 - **Kirjavälitys**: description fallback for some ISBNs, queried through a Cloudflare Pages Function.
+- **Curated local datasets**: top-loaned PIKI titles and recommended-book markers.
 
 Ratings and descriptions are best-effort enrichments. Many books will not have public ratings.
 
