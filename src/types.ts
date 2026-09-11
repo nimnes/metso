@@ -4,6 +4,7 @@ export type BookRating = {
   value: number
   count: number
   source: 'finna' | 'openlibrary' | 'hardcover' | 'fantlab'
+  url?: string
 }
 
 export type RatingSource = BookRating['source']

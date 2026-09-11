@@ -8,6 +8,7 @@ type HardcoverResponse = {
   }
   coverUrl?: string
   description?: string
+  hardcoverUrl?: string
 }
 
 const CACHE_PREFIX = 'metso-hardcover-v2:'
@@ -73,7 +74,7 @@ function mergeEnrichment(book: Book, enrichment: HardcoverResponse): Book {
   const ratings = {
     ...book.ratings,
     ...(book.rating && !book.ratings?.[book.rating.source] ? { [book.rating.source]: book.rating } : {}),
-    ...(enrichment.rating ? { hardcover: enrichment.rating } : {}),
+    ...(enrichment.rating ? { hardcover: { ...enrichment.rating, url: enrichment.hardcoverUrl } } : {}),
   }
 
   return {

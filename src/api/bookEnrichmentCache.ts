@@ -152,12 +152,12 @@ function parseEntry(value: string): CachedBookEnrichment | undefined {
     checkedSources.push(source)
     if (rawValue === '-') return
 
-    const [ratingValue, countValue] = rawValue.split(',')
+    const [ratingValue, countValue, urlValue] = rawValue.split(',')
     const rating = Number(ratingValue)
     const count = Number(countValue)
     if (!Number.isFinite(rating) || !Number.isFinite(count)) return
 
-    ratings[source] = { value: rating, count, source }
+    ratings[source] = { value: rating, count, source, url: decodeValue(urlValue) || undefined }
   })
 
   return {
@@ -174,7 +174,7 @@ function formatEntry(entry: CachedBookEnrichment): string {
     if (!entry.checkedSources.includes(source) && !entry.ratings[source]) return []
 
     const rating = entry.ratings[source]
-    const value = rating ? `${trimNumber(rating.value)},${Math.round(rating.count)}` : '-'
+    const value = rating ? `${trimNumber(rating.value)},${Math.round(rating.count)},${encodeURIComponent(rating.url ?? '')}` : '-'
     return `${SOURCE_CODES[source]}:${value}`
   })
 
@@ -193,7 +193,8 @@ function trimNumber(value: number): string {
   return Number(value.toFixed(2)).toString()
 }
 
-function decodeValue(value: string): string {
+function decodeValue(value?: string): string {
+  if (!value || value === 'undefined') return ''
   try {
     return decodeURIComponent(value)
   } catch {

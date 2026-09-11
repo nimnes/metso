@@ -746,7 +746,7 @@ const BookCard = memo(function BookCard({
 
         {hasRatings(book.ratings) ? (
           <div className="card-rating-row">
-            <Ratings ratings={book.ratings} uiLanguage={uiLanguage} />
+            <Ratings book={book} ratings={book.ratings} uiLanguage={uiLanguage} />
           </div>
         ) : null}
 
@@ -806,9 +806,12 @@ function BookDetailsPanel({
   }, [detailState.loading])
 
   async function shareBook() {
+    const shareText = primaryAuthor
+      ? `${displayBook.title} - ${primaryAuthor}\n${displayBook.pikiUrl}`
+      : `${displayBook.title}\n${displayBook.pikiUrl}`
     const shareData = {
       title: displayBook.title,
-      text: primaryAuthor ? `${displayBook.title} - ${primaryAuthor}` : displayBook.title,
+      text: shareText,
       url: displayBook.pikiUrl,
     }
 
@@ -864,7 +867,7 @@ function BookDetailsPanel({
           </div>
 
           <div className="meta-row">
-            {hasRatings(displayBook.ratings) ? <Ratings ratings={displayBook.ratings} uiLanguage={uiLanguage} /> : null}
+            {hasRatings(displayBook.ratings) ? <Ratings book={displayBook} ratings={displayBook.ratings} uiLanguage={uiLanguage} /> : null}
           </div>
 
           {detailState.error ? <p className="detail-error">{translateError(detailState.error, uiLanguage)}</p> : null}
@@ -968,7 +971,7 @@ function BookMarkers({ book, uiLanguage }: { book: Book; uiLanguage: UiLanguage 
   )
 }
 
-function Ratings({ ratings, uiLanguage }: { ratings?: Book['ratings']; uiLanguage: UiLanguage }) {
+function Ratings({ book, ratings, uiLanguage }: { book: Pick<Book, 'authors' | 'isbns' | 'title'>; ratings?: Book['ratings']; uiLanguage: UiLanguage }) {
   const t = translations[uiLanguage]
   const availableRatings = RATING_SOURCES.flatMap((source) => {
     const rating = ratings?.[source]
@@ -980,16 +983,74 @@ function Ratings({ ratings, uiLanguage }: { ratings?: Book['ratings']; uiLanguag
   return (
     <span className="rating-list" aria-label={t.publicRatings}>
       {availableRatings.map(({ source, rating }) => {
-        return (
-          <span className="rating" key={source}>
+        const ratingUrl = getRatingReviewUrl(rating, book)
+        const content = (
+          <>
             <RatingSourceMark source={source} uiLanguage={uiLanguage} />
             <strong>{rating.value.toFixed(1)}</strong>
             <small>({formatRatingCount(rating.count)})</small>
+          </>
+        )
+
+        if (ratingUrl) {
+          return (
+            <a className="rating" href={ratingUrl} key={source} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>
+              {content}
+            </a>
+          )
+        }
+
+        return (
+          <span className="rating" key={source}>
+            {content}
           </span>
         )
       })}
     </span>
   )
+}
+
+function getRatingReviewUrl(rating: NonNullable<Book['rating']>, book: Pick<Book, 'authors' | 'isbns' | 'title'>): string | undefined {
+  const url = getValidRatingUrl(rating.url)
+  if (rating.source === 'openlibrary') {
+    const openLibraryUrl = url ? getExternalRatingUrl(url, 'https://openlibrary.org').replace(/#.*$/, '') : getOpenLibraryFallbackUrl(book)
+    return openLibraryUrl ? `${openLibraryUrl}#reviews` : undefined
+  }
+  if (rating.source === 'hardcover') {
+    if (!url) return getHardcoverFallbackUrl(book)
+    const hardcoverUrl = getExternalRatingUrl(url, 'https://hardcover.app').replace(/\/$/, '')
+    return hardcoverUrl.endsWith('/reviews') ? hardcoverUrl : `${hardcoverUrl}/reviews`
+  }
+  if (!url) return undefined
+  if (rating.source === 'fantlab') {
+    const fantLabUrl = getExternalRatingUrl(url, 'https://fantlab.ru')
+    return fantLabUrl.includes('?') ? fantLabUrl : `${fantLabUrl}?page=1`
+  }
+  return url
+}
+
+function getValidRatingUrl(value?: string): string | undefined {
+  const trimmed = value?.trim()
+  return trimmed && trimmed !== 'undefined' ? trimmed : undefined
+}
+
+function getOpenLibraryFallbackUrl(book: Pick<Book, 'isbns'>): string | undefined {
+  return book.isbns[0] ? `https://openlibrary.org/isbn/${book.isbns[0]}` : undefined
+}
+
+function getHardcoverFallbackUrl(book: Pick<Book, 'authors' | 'title'>): string {
+  const query = [book.title, book.authors[0]].filter(Boolean).join(' ')
+  return `https://hardcover.app/search?q=${encodeURIComponent(query)}`
+}
+
+function getExternalRatingUrl(value: string, origin: string): string {
+  try {
+    const parsed = new URL(value)
+    if (parsed.origin === window.location.origin) return new URL(parsed.pathname + parsed.search + parsed.hash, origin).toString()
+    return parsed.toString()
+  } catch {
+    return new URL(value.startsWith('/') ? value : `/${value}`, origin).toString()
+  }
 }
 
 function TopLoanedMark({ book, uiLanguage }: { book: Book; uiLanguage: UiLanguage }) {

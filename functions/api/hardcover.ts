@@ -96,7 +96,7 @@ export async function onRequestGet({ request, env }: PagesContext): Promise<Resp
       : undefined,
     coverUrl: fallbackBook.image?.url,
     description: cleanText(fallbackBook.description ?? undefined),
-    hardcoverUrl: fallbackBook.slug ? `https://hardcover.app/books/${fallbackBook.slug}` : undefined,
+    hardcoverUrl: getHardcoverReviewsUrl(fallbackBook),
   }
 
   return Response.json(body, {
@@ -122,6 +122,11 @@ async function queryBook(token: string, query: string, variables: Record<string,
   if (result.errors?.length) return undefined
 
   return result.data?.editions?.[0]?.book ?? result.data?.books?.[0]
+}
+
+function getHardcoverReviewsUrl(book: HardcoverBook): string | undefined {
+  if (book.slug) return `https://hardcover.app/books/${book.slug}/reviews`
+  return book.id ? `https://hardcover.app/book/${book.id}/reviews` : undefined
 }
 
 function emptyResponse(reason: 'missing-token' | 'no-match', debug: boolean): Response {

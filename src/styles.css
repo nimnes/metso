@@ -633,8 +633,16 @@ button {
 }
 
 .rating {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
   color: #314143;
+  text-decoration: none;
+}
+
+a.rating:hover strong {
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .rating strong {

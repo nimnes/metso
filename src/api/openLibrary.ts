@@ -88,7 +88,7 @@ async function byIsbn(isbn: string): Promise<Partial<Book> | undefined> {
   const rating = workKey ? await getRating(workKey) : undefined
   const coverUrl = edition.covers?.[0] ? `https://covers.openlibrary.org/b/id/${edition.covers[0]}-M.jpg` : undefined
 
-  return { rating, coverUrl, coverUrls: coverUrl ? [coverUrl] : undefined }
+  return { rating: rating && workKey ? { ...rating, url: `https://openlibrary.org${workKey}#reviews` } : rating, coverUrl, coverUrls: coverUrl ? [coverUrl] : undefined }
 }
 
 async function bySearch(book: Book): Promise<Partial<Book> | undefined> {
@@ -113,7 +113,7 @@ async function bySearch(book: Book): Promise<Partial<Book> | undefined> {
   return {
     rating:
       doc.ratings_average && doc.ratings_count
-        ? { value: doc.ratings_average, count: doc.ratings_count, source: 'openlibrary' }
+        ? { value: doc.ratings_average, count: doc.ratings_count, source: 'openlibrary', url: doc.key ? `https://openlibrary.org${doc.key}#reviews` : undefined }
         : undefined,
     coverUrl,
     coverUrls: coverUrl ? [coverUrl] : undefined,

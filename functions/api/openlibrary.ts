@@ -34,6 +34,7 @@ type OpenLibraryResponse = {
     value: number
     count: number
     source: 'openlibrary'
+    url?: string
   }
   coverUrl?: string
   coverUrls?: string[]
@@ -77,7 +78,12 @@ async function byIsbn(isbn: string): Promise<OpenLibraryResponse | undefined> {
   const description = workKey ? await getDescription(workKey) : undefined
   const coverUrl = edition.covers?.[0] ? `${OPEN_LIBRARY_COVERS_BASE}/b/id/${edition.covers[0]}-M.jpg` : undefined
 
-  return { rating, description, coverUrl, coverUrls: coverUrl ? [coverUrl] : undefined }
+  return {
+    rating: rating && workKey ? { ...rating, url: `${OPEN_LIBRARY_BASE}${workKey}#reviews` } : rating,
+    description,
+    coverUrl,
+    coverUrls: coverUrl ? [coverUrl] : undefined,
+  }
 }
 
 async function bySearch(title: string, author?: string): Promise<OpenLibraryResponse | undefined> {
@@ -102,7 +108,11 @@ async function bySearch(title: string, author?: string): Promise<OpenLibraryResp
       ? { value: doc.ratings_average, count: doc.ratings_count, source: 'openlibrary' as const }
       : undefined
 
-  return { rating, coverUrl, coverUrls: coverUrl ? [coverUrl] : undefined }
+  return {
+    rating: rating && doc.key ? { ...rating, url: `${OPEN_LIBRARY_BASE}${doc.key}#reviews` } : rating,
+    coverUrl,
+    coverUrls: coverUrl ? [coverUrl] : undefined,
+  }
 }
 
 async function getRating(workKey: string): Promise<OpenLibraryResponse['rating']> {

@@ -43,7 +43,7 @@ function mergeEnrichment(book: Book, enrichment: FantLabResponse): Book {
   const ratings = {
     ...book.ratings,
     ...(book.rating && !book.ratings?.[book.rating.source] ? { [book.rating.source]: book.rating } : {}),
-    ...(enrichment.rating ? { fantlab: enrichment.rating } : {}),
+    ...(enrichment.rating ? { fantlab: { ...enrichment.rating, url: enrichment.fantlabUrl } } : {}),
   }
 
   return {

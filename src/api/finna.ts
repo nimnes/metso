@@ -147,6 +147,7 @@ export async function getFinnaBookDetails(finnaId: string): Promise<BookDetails>
 function normalizeFinnaBook(record: FinnaRecord): Book {
   const isbns = normalizeIsbns([...(record.isbns ?? []), record.cleanIsbn].filter(Boolean) as string[])
   const finnaRating = normalizeFinnaRating(record.rating)
+  const pikiUrl = record.recordPage ? `${PIKI_BASE}${record.recordPage}` : `${PIKI_BASE}/Record/${record.id}`
   const coverUrls = unique([
     ...(record.images ?? []).map((image) => `${PIKI_BASE}${image}`),
     ...isbns.map(openLibraryCoverUrl).filter(Boolean),
@@ -164,11 +165,11 @@ function normalizeFinnaBook(record: FinnaRecord): Book {
     formats: (record.formats ?? []).map((format) => format.translated),
     coverUrl: coverUrls[0],
     coverUrls,
-    ratings: finnaRating ? { finna: finnaRating } : undefined,
-    rating: finnaRating,
+    ratings: finnaRating ? { finna: { ...finnaRating, url: pikiUrl } } : undefined,
+    rating: finnaRating ? { ...finnaRating, url: pikiUrl } : undefined,
     topLoaned: hasTopLoanedIdentifier(isbns),
     branches: normalizeBranches(record),
-    pikiUrl: record.recordPage ? `${PIKI_BASE}${record.recordPage}` : `${PIKI_BASE}/Record/${record.id}`,
+    pikiUrl,
   }
 }
 

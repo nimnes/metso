@@ -53,7 +53,7 @@ export async function onRequestGet({ request }: PagesContext): Promise<Response>
     return Response.json(
       {
         rating,
-        fantlabUrl: `https://fantlab.ru/work${workId}`,
+        fantlabUrl: `https://fantlab.ru/work${workId}?page=1`,
       },
       {
         headers: {
