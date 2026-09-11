@@ -789,6 +789,11 @@ a.rating:hover strong {
   right: 14px;
 }
 
+.back-button-icon,
+.back-button-label {
+  display: none;
+}
+
 .details-cover-column {
   display: grid;
   align-content: start;
@@ -1138,19 +1143,56 @@ a.rating:hover strong {
   }
 
   .modal-backdrop {
-    padding: 10px;
+    display: block;
+    padding: 0;
+    background: #fffdfa;
   }
 
   .details-panel {
     grid-template-columns: 1fr;
     gap: 16px;
-    max-height: calc(100vh - 20px);
-    padding: 16px;
+    width: 100%;
+    min-height: 100vh;
+    min-height: 100dvh;
+    max-height: none;
+    padding: 18px 16px 32px;
+    overflow-y: visible;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .close-button {
+    position: fixed;
+    top: 12px;
+    right: auto;
+    left: 12px;
+    z-index: 2;
+    display: inline-flex;
+    width: auto;
+    gap: 4px;
+    padding: 0 10px;
+    background: #fffdfa;
+    border-color: #d2ded9;
+  }
+
+  .close-button-icon {
+    display: none;
+  }
+
+  .back-button-icon,
+  .back-button-label {
+    display: inline-block;
+  }
+
+  .back-button-label {
+    font-weight: 750;
   }
 
   .details-cover-column {
     width: 100%;
     max-width: 190px;
+    margin-top: 48px;
   }
 
   .details-cover {

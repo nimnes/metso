@@ -57,6 +57,7 @@ function App() {
   const [detailState, setDetailState] = useState<{ loading: boolean; error?: string; details?: BookDetails }>({ loading: false })
   const [uiLanguage, setUiLanguage] = useState(getStoredUiLanguage)
   const resultsTopRef = useRef<HTMLDivElement | null>(null)
+  const booksRef = useRef<Book[]>([])
   const [openFilterSections, setOpenFilterSections] = useState<Record<FilterSectionKey, boolean>>(getStoredFilterSections)
   const t = translations[uiLanguage]
   const catalogueFilters = useMemo<BookSearchFilters>(
@@ -90,6 +91,42 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(FILTER_SECTION_STORAGE_KEY, JSON.stringify(openFilterSections))
   }, [openFilterSections])
+
+  useEffect(() => {
+    booksRef.current = state.books
+  }, [state.books])
+
+  useEffect(() => {
+    function selectBookFromLocation() {
+      const finnaId = getBookIdFromLocation()
+      if (!finnaId) {
+        setSelectedBook(undefined)
+        return
+      }
+
+      const book = booksRef.current.find((candidate) => candidate.finnaId === finnaId)
+      if (book) {
+        setSelectedBook(book)
+        return
+      }
+
+      setDetailState({ loading: true })
+      getFinnaBookDetails(finnaId)
+        .then((details) => {
+          const enrichedDetails: BookDetails = { ...details, ...applyCachedBookEnrichment(details) }
+          setSelectedBook(enrichedDetails)
+          setDetailState({ loading: false, details: enrichedDetails })
+        })
+        .catch((error) => {
+          setSelectedBook(undefined)
+          setDetailState({ loading: false, error: error instanceof Error ? error.message : GENERIC_DETAILS_ERROR })
+        })
+    }
+
+    selectBookFromLocation()
+    window.addEventListener('popstate', selectBookFromLocation)
+    return () => window.removeEventListener('popstate', selectBookFromLocation)
+  }, [])
 
   useEffect(() => {
     if (!hasSearched) return
@@ -201,7 +238,17 @@ function App() {
     if (!selectedBook) return
 
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setSelectedBook(undefined)
+      if (event.key !== 'Escape') return
+      if (getBookIdFromLocation()) {
+        if (isAppBookHistoryEntry()) {
+          window.history.back()
+        } else {
+          removeBookFromCurrentUrl()
+          setSelectedBook(undefined)
+        }
+        return
+      }
+      setSelectedBook(undefined)
     }
 
     window.addEventListener('keydown', closeOnEscape)
@@ -255,7 +302,22 @@ function App() {
   }
 
   const selectBook = useCallback((book: Book) => {
+    pushBookToHistory(book.finnaId)
     setSelectedBook(book)
+  }, [])
+
+  const closeSelectedBook = useCallback(() => {
+    if (getBookIdFromLocation()) {
+      if (isAppBookHistoryEntry()) {
+        window.history.back()
+      } else {
+        removeBookFromCurrentUrl()
+        setSelectedBook(undefined)
+      }
+      return
+    }
+
+    setSelectedBook(undefined)
   }, [])
 
   const searchAuthor = useCallback((author: string) => {
@@ -263,6 +325,7 @@ function App() {
     setHasSearched(true)
     setCurrentPage(1)
     setFilters((current) => ({ ...current, query: author }))
+    removeBookFromCurrentUrl()
     setSelectedBook(undefined)
   }, [])
 
@@ -273,6 +336,7 @@ function App() {
     setCurrentPage(1)
     setHasSearched(true)
     setFilters((current) => ({ ...current, branchCodes: [matchingBranch.code] }))
+    removeBookFromCurrentUrl()
     setSelectedBook(undefined)
   }, [])
 
@@ -406,7 +470,7 @@ function App() {
         <BookDetailsPanel
           book={selectedBook}
           detailState={detailState}
-          onClose={() => setSelectedBook(undefined)}
+          onClose={closeSelectedBook}
           onSearchAuthor={searchAuthor}
           onSearchLibrary={searchLibrary}
           uiLanguage={uiLanguage}
@@ -422,6 +486,31 @@ async function getOptionalOpenLibraryDescription(isbn?: string): Promise<string 
   } catch {
     return undefined
   }
+}
+
+function getBookIdFromLocation(): string | undefined {
+  const value = new URL(window.location.href).searchParams.get('book')?.trim()
+  return value || undefined
+}
+
+function pushBookToHistory(finnaId: string): void {
+  const url = new URL(window.location.href)
+  if (url.searchParams.get('book') === finnaId) return
+
+  url.searchParams.set('book', finnaId)
+  window.history.pushState({ book: finnaId }, '', `${url.pathname}${url.search}${url.hash}`)
+}
+
+function removeBookFromCurrentUrl(): void {
+  const url = new URL(window.location.href)
+  if (!url.searchParams.has('book')) return
+
+  url.searchParams.delete('book')
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+}
+
+function isAppBookHistoryEntry(): boolean {
+  return Boolean(window.history.state?.book)
 }
 
 async function enrichBookRatings(book: Book, onUpdate: (book: Book) => void, onComplete: () => void): Promise<void> {
@@ -837,7 +926,9 @@ function BookDetailsPanel({
     <div className="modal-backdrop" onClick={onClose}>
       <section className="details-panel" role="dialog" aria-modal="true" aria-labelledby="book-details-title" onClick={(event) => event.stopPropagation()}>
         <button className="icon-button close-button" type="button" onClick={onClose} aria-label={t.closeDetails}>
-          <X size={20} aria-hidden="true" />
+          <X className="close-button-icon" size={20} aria-hidden="true" />
+          <ChevronLeft className="back-button-icon" size={20} aria-hidden="true" />
+          <span className="back-button-label">{t.previousPage}</span>
         </button>
 
         <div className="details-cover-column">
