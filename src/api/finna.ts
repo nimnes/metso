@@ -7,6 +7,7 @@ import { removeDuplicateRussianTransliteration } from './descriptionCleanup'
 const FINNA_API_BASE = 'https://api.finna.fi/v1'
 const PIKI_BASE = 'https://piki.finna.fi'
 export const FINNA_PAGE_SIZE = 20
+const STRICT_LANGUAGE_API_PAGE_SIZE = 100
 const CHILDREN_GENRE_VALUE = 'children'
 const CHILDREN_GENRE_FILTERS = GENRE_OPTIONS.find((option) => option.value === CHILDREN_GENRE_VALUE)?.finnaValues ?? []
 
@@ -91,11 +92,50 @@ const DETAIL_FIELDS = [
 ]
 
 export async function searchFinna(filters: BookSearchFilters, page = 1): Promise<{ total: number; books: Book[] }> {
+  if (filters.languageCodes.length) return searchFinnaWithPrimaryLanguage(filters, page)
+
+  const data = await fetchFinnaSearch(filters, page, FINNA_PAGE_SIZE)
+
+  return {
+    total: data.resultCount ?? 0,
+    books: (data.records ?? []).map(normalizeFinnaBook),
+  }
+}
+
+async function searchFinnaWithPrimaryLanguage(filters: BookSearchFilters, page: number): Promise<{ total: number; books: Book[] }> {
+  const targetStart = (page - 1) * FINNA_PAGE_SIZE
+  const targetEnd = targetStart + FINNA_PAGE_SIZE
+  const matches: FinnaRecord[] = []
+  let scanned = 0
+  let rawTotal = 0
+  let apiPage = 1
+
+  while (matches.length < targetEnd && (apiPage === 1 || scanned < rawTotal)) {
+    const data = await fetchFinnaSearch(filters, apiPage, STRICT_LANGUAGE_API_PAGE_SIZE)
+    const records = data.records ?? []
+    rawTotal = data.resultCount ?? rawTotal
+    scanned += records.length
+    matches.push(...records.filter((record) => matchesPrimaryLanguage(record, filters.languageCodes)))
+
+    if (records.length < STRICT_LANGUAGE_API_PAGE_SIZE || scanned >= rawTotal) break
+    apiPage += 1
+  }
+
+  const pageRecords = matches.slice(targetStart, targetEnd)
+  const total = scanned >= rawTotal ? targetStart + pageRecords.length : rawTotal
+
+  return {
+    total,
+    books: pageRecords.map(normalizeFinnaBook),
+  }
+}
+
+async function fetchFinnaSearch(filters: BookSearchFilters, page: number, limit: number): Promise<FinnaSearchResponse> {
   const params = new URLSearchParams()
   params.set('lookfor', filters.query.trim() || '*')
   params.set('type', 'AllFields')
   params.set('sort', sortToFinna(filters.sort))
-  params.set('limit', String(FINNA_PAGE_SIZE))
+  params.set('limit', String(limit))
   params.set('page', String(page))
 
   REQUESTED_FIELDS.forEach((field) => params.append('field[]', field))
@@ -134,10 +174,7 @@ export async function searchFinna(filters: BookSearchFilters, page = 1): Promise
     throw new Error(data.statusMessage || 'Finna returned an error')
   }
 
-  return {
-    total: data.resultCount ?? 0,
-    books: (data.records ?? []).map(normalizeFinnaBook),
-  }
+  return data
 }
 
 export async function getFinnaBookDetails(finnaId: string): Promise<BookDetails> {
@@ -186,6 +223,10 @@ function normalizeFinnaBook(record: FinnaRecord): Book {
     branches: normalizeBranches(record),
     pikiUrl,
   }
+}
+
+function matchesPrimaryLanguage(record: FinnaRecord, languageCodes: string[]): boolean {
+  return languageCodes.length === 0 || languageCodes.includes(record.languages?.[0] ?? '')
 }
 
 function normalizeFinnaRating(rating?: FinnaRecord['rating']): BookRating | undefined {
