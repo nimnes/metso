@@ -535,6 +535,14 @@ button {
   text-align: center;
 }
 
+.mobile-load-more {
+  display: none;
+}
+
+.mobile-loading-more {
+  display: none;
+}
+
 .book-card:hover,
 .book-card:focus-visible {
   border-color: #12664f;
@@ -1000,6 +1008,10 @@ a.rating:hover strong {
   width: 220px;
 }
 
+.mobile-detail-rating {
+  display: none;
+}
+
 .details-link {
   width: 100%;
   min-height: 42px;
@@ -1384,6 +1396,19 @@ a.rating:hover strong {
     max-width: 180px;
   }
 
+  .mobile-load-more {
+    display: block;
+    height: 1px;
+  }
+
+  .mobile-loading-more {
+    display: block;
+    padding: 10px 0 4px;
+    color: #697371;
+    text-align: center;
+    font-size: 0.92rem;
+  }
+
   .modal-backdrop {
     display: block;
     padding: 0;
@@ -1432,16 +1457,35 @@ a.rating:hover strong {
   }
 
   .details-cover-column {
+    grid-template-columns: minmax(118px, 42vw) minmax(0, 1fr);
+    align-items: start;
     width: 100%;
-    max-width: 190px;
+    max-width: none;
     margin-top: 48px;
   }
 
   .details-cover {
     width: 100%;
-    max-width: 190px;
-    height: 280px;
-    min-height: 280px;
+    max-width: 170px;
+    height: auto;
+    min-height: 0;
+    aspect-ratio: 0.68;
+    grid-column: 1;
+    grid-row: 1 / span 4;
+  }
+
+  .details-cover-column > .details-link {
+    grid-column: 2;
+  }
+
+  .mobile-detail-rating {
+    display: block;
+    grid-column: 1 / -1;
+    padding-top: 2px;
+  }
+
+  .details-main > .meta-row {
+    display: none;
   }
 
   .details-main {

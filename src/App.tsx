@@ -60,6 +60,7 @@ const GENERIC_DETAILS_ERROR = 'metso:details-failed'
 const FILTER_STORAGE_KEY = 'metso-search-filters'
 const FILTER_SECTION_STORAGE_KEY = 'metso-filter-sections'
 const WISHLIST_STORAGE_KEY = 'metso-wishlist'
+const MOBILE_FINNA_PAGE_SIZE = 10
 const initialFilterSections: Record<FilterSectionKey, boolean> = {
   language: true,
   genre: true,
@@ -80,8 +81,11 @@ function App() {
   const [wishlistBooks, setWishlistBooks] = useState<Book[]>(getStoredWishlist)
   const [showWishlist, setShowWishlist] = useState(false)
   const resultsTopRef = useRef<HTMLDivElement | null>(null)
+  const mobileLoadMoreRef = useRef<HTMLDivElement | null>(null)
   const booksRef = useRef<Book[]>([])
   const [openFilterSections, setOpenFilterSections] = useState<Record<FilterSectionKey, boolean>>(getStoredFilterSections)
+  const isMobileResults = useMediaQuery('(max-width: 620px)')
+  const pageSize = isMobileResults ? MOBILE_FINNA_PAGE_SIZE : FINNA_PAGE_SIZE
   const t = translations[uiLanguage]
   const catalogueFilters = useMemo<BookSearchFilters>(
     () => ({
@@ -124,6 +128,10 @@ function App() {
   }, [state.books])
 
   useEffect(() => {
+    setCurrentPage(1)
+  }, [pageSize])
+
+  useEffect(() => {
     function selectBookFromLocation() {
       const finnaId = getBookIdFromLocation()
       if (!finnaId) {
@@ -163,11 +171,14 @@ function App() {
     async function runSearch() {
       setState((current) => ({ ...current, loading: true, enriching: 0, error: undefined }))
       try {
-        const result = await searchFinna(catalogueFilters, currentPage)
+        const result = await searchFinna(catalogueFilters, currentPage, pageSize)
         if (cancelled) return
         const books = result.books.map(applyCachedBookEnrichment)
         books.forEach((book) => rememberBookEnrichment(book, book.ratings?.finna ? 'finna' : undefined))
-        setState({ loading: false, enriching: books.length, total: result.total, books })
+        setState((current) => {
+          const nextBooks = isMobileResults && currentPage > 1 ? uniqueBooksById([...current.books, ...books]) : books
+          return { loading: false, enriching: books.length, total: result.total, books: nextBooks }
+        })
 
         books.forEach((book) => {
           enrichBookRatings(
@@ -212,7 +223,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [catalogueFilters, currentPage, hasSearched])
+  }, [catalogueFilters, currentPage, hasSearched, isMobileResults, pageSize])
 
   useEffect(() => {
     if (!selectedBook) return
@@ -287,12 +298,30 @@ function App() {
   const wishlistIds = useMemo(() => new Set(wishlistBooks.map((book) => book.finnaId)), [wishlistBooks])
   const visibleBooks = showWishlist ? wishlistBooks : displayedBooks
   const visibleBookCount = visibleBooks.length
-  const totalPages = Math.max(Math.ceil(state.total / FINNA_PAGE_SIZE), 1)
+  const totalPages = Math.max(Math.ceil(state.total / pageSize), 1)
+  const loadingMoreOnMobile = isMobileResults && currentPage > 1 && state.loading
+  const canLoadMoreOnMobile = isMobileResults && hasSearched && !showWishlist && !state.error && !state.loading && currentPage < totalPages
 
   const changePage = useCallback((page: number) => {
     setCurrentPage(page)
     resultsTopRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
   }, [])
+
+  useEffect(() => {
+    if (!canLoadMoreOnMobile) return
+
+    const marker = mobileLoadMoreRef.current
+    if (!marker) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) setCurrentPage((page) => Math.min(page + 1, totalPages))
+      },
+      { rootMargin: '360px 0px' },
+    )
+    observer.observe(marker)
+    return () => observer.disconnect()
+  }, [canLoadMoreOnMobile, totalPages])
 
   useEffect(() => {
     if (!state.loading && currentPage > totalPages) {
@@ -490,7 +519,7 @@ function App() {
           <div ref={resultsTopRef} />
           {hasSearched ? (
             <section className="status-bar" aria-live="polite">
-              <span>{showWishlist ? t.wishlistCount(wishlistBooks.length) : state.loading ? t.searching : t.resultCount(visibleBookCount, state.total)}</span>
+              <span>{showWishlist ? t.wishlistCount(wishlistBooks.length) : state.loading && !loadingMoreOnMobile ? t.searching : t.resultCount(visibleBookCount, state.total)}</span>
             </section>
           ) : null}
 
@@ -513,7 +542,7 @@ function App() {
             ))}
           </section>
 
-          {hasSearched && !showWishlist && !state.error && state.total > FINNA_PAGE_SIZE ? (
+          {hasSearched && !showWishlist && !state.error && !isMobileResults && state.total > pageSize ? (
             <Pagination
               currentPage={currentPage}
               disabled={state.loading}
@@ -522,6 +551,12 @@ function App() {
               uiLanguage={uiLanguage}
             />
           ) : null}
+
+          {isMobileResults && !showWishlist && !state.error && currentPage < totalPages ? (
+            <div className="mobile-load-more" ref={mobileLoadMoreRef} aria-hidden="true" />
+          ) : null}
+
+          {loadingMoreOnMobile ? <div className="mobile-loading-more">{t.loadingMore}</div> : null}
 
           {hasSearched && !state.loading && (showWishlist || !state.error) && visibleBookCount === 0 ? (
             <div className="empty">
@@ -548,6 +583,24 @@ function App() {
       {scannerOpen ? <BarcodeScannerDialog onClose={() => setScannerOpen(false)} onScan={searchScannedBarcode} uiLanguage={uiLanguage} /> : null}
     </main>
   )
+}
+
+function useMediaQuery(query: string): boolean {
+  const [matches, setMatches] = useState(() => (typeof window === 'undefined' ? false : window.matchMedia(query).matches))
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(query)
+    setMatches(mediaQuery.matches)
+
+    function handleChange(event: MediaQueryListEvent) {
+      setMatches(event.matches)
+    }
+
+    mediaQuery.addEventListener('change', handleChange)
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [query])
+
+  return matches
 }
 
 async function getOptionalOpenLibraryDescription(isbn?: string): Promise<string | undefined> {
@@ -656,6 +709,10 @@ function updateBookInSearchState(state: SearchState, enrichedBook: Book): Search
     ...state,
     books: state.books.map((book) => (book.id === enrichedBook.id ? { ...book, ...enrichedBook } : book)),
   }
+}
+
+function uniqueBooksById(books: Book[]): Book[] {
+  return Array.from(new Map(books.map((book) => [book.id, book])).values())
 }
 
 function updateBookInWishlist(wishlist: Book[], updatedBook: Book): Book[] {
@@ -1237,6 +1294,11 @@ function BookDetailsPanel({
             {shareCopied ? t.shareCopied : t.shareBook}
             <Share2 size={16} aria-hidden="true" />
           </button>
+          {hasRatings(displayBook.ratings) ? (
+            <div className="mobile-detail-rating">
+              <Ratings book={displayBook} ratings={displayBook.ratings} uiLanguage={uiLanguage} />
+            </div>
+          ) : null}
         </div>
 
         <div className="details-main">

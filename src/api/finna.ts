@@ -91,10 +91,10 @@ const DETAIL_FIELDS = [
   'series',
 ]
 
-export async function searchFinna(filters: BookSearchFilters, page = 1): Promise<{ total: number; books: Book[] }> {
-  if (filters.languageCodes.length) return searchFinnaWithPrimaryLanguage(filters, page)
+export async function searchFinna(filters: BookSearchFilters, page = 1, pageSize = FINNA_PAGE_SIZE): Promise<{ total: number; books: Book[] }> {
+  if (filters.languageCodes.length) return searchFinnaWithPrimaryLanguage(filters, page, pageSize)
 
-  const data = await fetchFinnaSearch(filters, page, FINNA_PAGE_SIZE)
+  const data = await fetchFinnaSearch(filters, page, pageSize)
 
   return {
     total: data.resultCount ?? 0,
@@ -102,9 +102,9 @@ export async function searchFinna(filters: BookSearchFilters, page = 1): Promise
   }
 }
 
-async function searchFinnaWithPrimaryLanguage(filters: BookSearchFilters, page: number): Promise<{ total: number; books: Book[] }> {
-  const targetStart = (page - 1) * FINNA_PAGE_SIZE
-  const targetEnd = targetStart + FINNA_PAGE_SIZE
+async function searchFinnaWithPrimaryLanguage(filters: BookSearchFilters, page: number, pageSize: number): Promise<{ total: number; books: Book[] }> {
+  const targetStart = (page - 1) * pageSize
+  const targetEnd = targetStart + pageSize
   const matches: FinnaRecord[] = []
   let scanned = 0
   let rawTotal = 0
