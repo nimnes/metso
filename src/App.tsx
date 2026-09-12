@@ -40,6 +40,10 @@ type BarcodeDetectorConstructor = {
   getSupportedFormats?: () => Promise<string[]>
 }
 
+type ScannerControls = {
+  stop: () => void
+}
+
 const initialFilters: BookSearchFilters = {
   query: '',
   languageCodes: [],
@@ -322,12 +326,11 @@ function App() {
   }, [])
 
   const searchScannedBarcode = useCallback((value: string) => {
-    const query = parseScannedBarcode(value)
     setScannerOpen(false)
-    setDraftQuery(query)
+    setDraftQuery(value)
     setHasSearched(true)
     setCurrentPage(1)
-    setFilters((current) => ({ ...current, query }))
+    setFilters((current) => ({ ...current, query: value }))
     removeBookFromCurrentUrl()
     setSelectedBook(undefined)
   }, [])
@@ -674,15 +677,35 @@ function BarcodeScannerDialog({ onClose, onScan, uiLanguage }: { onClose: () => 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const [error, setError] = useState<string | undefined>()
 
+  const handleDetectedValue = useCallback(
+    (value: string): boolean => {
+      const parsed = parseScannedBarcode(value)
+      if (!parsed) {
+        setError(t.scannerUnrecognizedCode)
+        return false
+      }
+
+      onScan(parsed)
+      return true
+    },
+    [onScan, t.scannerUnrecognizedCode],
+  )
+
   useEffect(() => {
     let active = true
     let frameId = 0
     let stream: MediaStream | undefined
+    let scannerControls: ScannerControls | undefined
 
     async function startScanner() {
       const Detector = getBarcodeDetectorConstructor()
-      if (!Detector || !navigator.mediaDevices?.getUserMedia) {
+      if (!navigator.mediaDevices?.getUserMedia) {
         setError(t.scannerUnsupported)
+        return
+      }
+
+      if (!Detector) {
+        await startZxingScanner()
         return
       }
 
@@ -712,8 +735,7 @@ function BarcodeScannerDialog({ onClose, onScan, uiLanguage }: { onClose: () => 
             if (videoRef.current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
               const detected = await detector.detect(videoRef.current)
               const value = detected[0]?.rawValue
-              if (value) {
-                onScan(value)
+              if (value && handleDetectedValue(value)) {
                 return
               }
             }
@@ -730,14 +752,45 @@ function BarcodeScannerDialog({ onClose, onScan, uiLanguage }: { onClose: () => 
       }
     }
 
+    async function startZxingScanner() {
+      try {
+        const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all([import('@zxing/browser'), import('@zxing/library')])
+        const hints = new Map()
+        hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.CODE_128, BarcodeFormat.CODE_39])
+        hints.set(DecodeHintType.TRY_HARDER, true)
+        const reader = new BrowserMultiFormatReader(hints, {
+          delayBetweenScanAttempts: 180,
+          delayBetweenScanSuccess: 500,
+        })
+        scannerControls = await reader.decodeFromConstraints(
+          {
+            audio: false,
+            video: {
+              facingMode: { ideal: 'environment' },
+            },
+          },
+          videoRef.current ?? undefined,
+          (result) => {
+            const value = result?.getText()
+            if (!active || !value) return
+
+            handleDetectedValue(value)
+          },
+        )
+      } catch {
+        if (active) setError(t.scannerCameraError)
+      }
+    }
+
     startScanner()
 
     return () => {
       active = false
       window.cancelAnimationFrame(frameId)
+      scannerControls?.stop()
       stream?.getTracks().forEach((track) => track.stop())
     }
-  }, [onScan, t.scannerCameraError, t.scannerUnsupported])
+  }, [handleDetectedValue, t.scannerCameraError, t.scannerUnsupported])
 
   return (
     <div className="scanner-backdrop" onClick={onClose}>
@@ -761,15 +814,13 @@ function getBarcodeDetectorConstructor(): BarcodeDetectorConstructor | undefined
   return 'BarcodeDetector' in window ? (window as Window & { BarcodeDetector?: BarcodeDetectorConstructor }).BarcodeDetector : undefined
 }
 
-function parseScannedBarcode(value: string): string {
+function parseScannedBarcode(value: string): string | undefined {
   const normalized = value.replace(/[\s-]/g, '').toUpperCase()
-  const isbn = normalized.match(/97[89][0-9]{10}/)?.[0]
-  if (isbn) return isbn
+  if (/^97[89][0-9]{10}$/.test(normalized)) return normalized
 
-  const pikiItemBarcode = normalized.match(/^837N[0-9]+$/)?.[0]
-  if (pikiItemBarcode) return pikiItemBarcode
+  if (/^837N[0-9]+$/.test(normalized)) return normalized
 
-  return normalized
+  return undefined
 }
 
 type MultiSelectOption = {
