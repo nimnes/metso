@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
+  Barcode,
   BookOpen,
   ChevronDown,
   ChevronLeft,
@@ -25,6 +26,19 @@ import { LANGUAGE_OPTIONS, TAMPERE_BRANCHES } from './data/tampereBranches'
 import { getStoredUiLanguage, translations, UI_LANGUAGE_STORAGE_KEY, UI_LANGUAGES } from './i18n'
 import type { UiLanguage } from './i18n'
 import type { Book, BookDetails, BookSearchFilters, LibraryPresence, RatingSource, SearchState, SortMode } from './types'
+
+type BarcodeDetectionResult = {
+  rawValue?: string
+}
+
+type BarcodeDetectorInstance = {
+  detect(source: HTMLVideoElement): Promise<BarcodeDetectionResult[]>
+}
+
+type BarcodeDetectorConstructor = {
+  new (options?: { formats?: string[] }): BarcodeDetectorInstance
+  getSupportedFormats?: () => Promise<string[]>
+}
 
 const initialFilters: BookSearchFilters = {
   query: '',
@@ -56,6 +70,7 @@ function App() {
   const [selectedBook, setSelectedBook] = useState<Book | undefined>()
   const [detailState, setDetailState] = useState<{ loading: boolean; error?: string; details?: BookDetails }>({ loading: false })
   const [uiLanguage, setUiLanguage] = useState(getStoredUiLanguage)
+  const [scannerOpen, setScannerOpen] = useState(false)
   const resultsTopRef = useRef<HTMLDivElement | null>(null)
   const booksRef = useRef<Book[]>([])
   const [openFilterSections, setOpenFilterSections] = useState<Record<FilterSectionKey, boolean>>(getStoredFilterSections)
@@ -306,6 +321,17 @@ function App() {
     setSelectedBook(book)
   }, [])
 
+  const searchScannedBarcode = useCallback((value: string) => {
+    const query = parseScannedBarcode(value)
+    setScannerOpen(false)
+    setDraftQuery(query)
+    setHasSearched(true)
+    setCurrentPage(1)
+    setFilters((current) => ({ ...current, query }))
+    removeBookFromCurrentUrl()
+    setSelectedBook(undefined)
+  }, [])
+
   const closeSelectedBook = useCallback(() => {
     if (getBookIdFromLocation()) {
       if (isAppBookHistoryEntry()) {
@@ -378,6 +404,9 @@ function App() {
               placeholder={t.searchPlaceholder}
               aria-label={t.searchAriaLabel}
             />
+            <button className="barcode-button" type="button" onClick={() => setScannerOpen(true)} aria-label={t.scanBarcode} title={t.scanBarcode}>
+              <Barcode size={22} aria-hidden="true" />
+            </button>
           </label>
           <button type="submit">
             <Search size={18} aria-hidden="true" />
@@ -476,6 +505,8 @@ function App() {
           uiLanguage={uiLanguage}
         />
       ) : null}
+
+      {scannerOpen ? <BarcodeScannerDialog onClose={() => setScannerOpen(false)} onScan={searchScannedBarcode} uiLanguage={uiLanguage} /> : null}
     </main>
   )
 }
@@ -636,6 +667,109 @@ function LanguageSwitcher({ currentLanguage, onChange }: { currentLanguage: UiLa
       ))}
     </div>
   )
+}
+
+function BarcodeScannerDialog({ onClose, onScan, uiLanguage }: { onClose: () => void; onScan: (value: string) => void; uiLanguage: UiLanguage }) {
+  const t = translations[uiLanguage]
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const [error, setError] = useState<string | undefined>()
+
+  useEffect(() => {
+    let active = true
+    let frameId = 0
+    let stream: MediaStream | undefined
+
+    async function startScanner() {
+      const Detector = getBarcodeDetectorConstructor()
+      if (!Detector || !navigator.mediaDevices?.getUserMedia) {
+        setError(t.scannerUnsupported)
+        return
+      }
+
+      try {
+        const supportedFormats = await Detector.getSupportedFormats?.()
+        const requestedFormats = ['ean_13', 'ean_8', 'code_128', 'code_39']
+        const formats = supportedFormats?.length ? requestedFormats.filter((format) => supportedFormats.includes(format)) : requestedFormats
+        const detector = new Detector(formats.length ? { formats } : undefined)
+
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: 'environment' },
+          },
+        })
+
+        const video = videoRef.current
+        if (!video || !active) return
+
+        video.srcObject = stream
+        await video.play()
+
+        async function scanFrame() {
+          if (!active || !videoRef.current) return
+
+          try {
+            if (videoRef.current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+              const detected = await detector.detect(videoRef.current)
+              const value = detected[0]?.rawValue
+              if (value) {
+                onScan(value)
+                return
+              }
+            }
+          } catch {
+            // Some browsers throw while the video is still settling; keep scanning.
+          }
+
+          frameId = window.requestAnimationFrame(scanFrame)
+        }
+
+        frameId = window.requestAnimationFrame(scanFrame)
+      } catch {
+        if (active) setError(t.scannerCameraError)
+      }
+    }
+
+    startScanner()
+
+    return () => {
+      active = false
+      window.cancelAnimationFrame(frameId)
+      stream?.getTracks().forEach((track) => track.stop())
+    }
+  }, [onScan, t.scannerCameraError, t.scannerUnsupported])
+
+  return (
+    <div className="scanner-backdrop" onClick={onClose}>
+      <section className="scanner-panel" role="dialog" aria-modal="true" aria-label={t.scannerTitle} onClick={(event) => event.stopPropagation()}>
+        <button className="icon-button scanner-close" type="button" onClick={onClose} aria-label={t.closeDetails}>
+          <X size={20} aria-hidden="true" />
+        </button>
+        <h2>{t.scannerTitle}</h2>
+        <p>{t.scannerHint}</p>
+        <div className="scanner-viewfinder">
+          <video ref={videoRef} autoPlay muted playsInline />
+          <span aria-hidden="true" />
+        </div>
+        {error ? <p className="scanner-error">{error}</p> : null}
+      </section>
+    </div>
+  )
+}
+
+function getBarcodeDetectorConstructor(): BarcodeDetectorConstructor | undefined {
+  return 'BarcodeDetector' in window ? (window as Window & { BarcodeDetector?: BarcodeDetectorConstructor }).BarcodeDetector : undefined
+}
+
+function parseScannedBarcode(value: string): string {
+  const normalized = value.replace(/[\s-]/g, '').toUpperCase()
+  const isbn = normalized.match(/97[89][0-9]{10}/)?.[0]
+  if (isbn) return isbn
+
+  const pikiItemBarcode = normalized.match(/^837N[0-9]+$/)?.[0]
+  if (pikiItemBarcode) return pikiItemBarcode
+
+  return normalized
 }
 
 type MultiSelectOption = {
