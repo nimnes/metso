@@ -51,6 +51,7 @@ type FinnaRecord = {
     genre_facet?: string[]
     holdings_txtP_mv?: string[]
     isbn?: string[]
+    title_alt?: string[]
   }
 }
 
@@ -170,7 +171,7 @@ function normalizeFinnaBook(record: FinnaRecord): Book {
   return {
     id: record.id,
     finnaId: record.id,
-    title: record.title || 'Untitled',
+    title: getDisplayTitle(record),
     authors: normalizeAuthors(record),
     isbns,
     languages: record.languages ?? [],
@@ -195,6 +196,10 @@ function normalizeFinnaRating(rating?: FinnaRecord['rating']): BookRating | unde
     count: rating.count,
     source: 'finna',
   }
+}
+
+function getDisplayTitle(record: FinnaRecord): string {
+  return record.rawData?.title_alt?.map(cleanText).find((title) => /[А-Яа-яЁё]/.test(title)) || record.title || 'Untitled'
 }
 
 function hasTopLoanedIdentifier(identifiers: string[]): boolean {
