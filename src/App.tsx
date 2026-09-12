@@ -342,7 +342,7 @@ function App() {
     setHasSearched(true)
     setCurrentPage(1)
     setFilters((current) => ({ ...current, query: value }))
-    removeBookFromCurrentUrl()
+    openListFromCurrentBook()
     setSelectedBook(undefined)
   }, [])
 
@@ -375,7 +375,7 @@ function App() {
     setHasSearched(true)
     setCurrentPage(1)
     setFilters((current) => ({ ...current, query: author }))
-    removeBookFromCurrentUrl()
+    openListFromCurrentBook()
     setSelectedBook(undefined)
   }, [])
 
@@ -386,7 +386,7 @@ function App() {
     setCurrentPage(1)
     setHasSearched(true)
     setFilters((current) => ({ ...current, branchCodes: [matchingBranch.code] }))
-    removeBookFromCurrentUrl()
+    openListFromCurrentBook()
     setSelectedBook(undefined)
   }, [])
 
@@ -584,6 +584,15 @@ function removeBookFromCurrentUrl(): void {
 
   url.searchParams.delete('book')
   window.history.replaceState(window.history.state, '', `/${url.search}${url.hash}`)
+}
+
+function openListFromCurrentBook(): void {
+  const url = new URL(window.location.href)
+  const hasBookRoute = /^\/book\/[^/]+\/?$/.test(url.pathname)
+  if (!hasBookRoute && !url.searchParams.has('book')) return
+
+  url.searchParams.delete('book')
+  window.history.pushState({ list: true }, '', `/${url.search}${url.hash}`)
 }
 
 function isAppBookHistoryEntry(): boolean {

@@ -9,7 +9,7 @@ type FinnaRecord = {
   id: string
   title?: string
   authors?: Record<string, Record<string, unknown>>
-  nonPresenterAuthors?: Array<{ name: string }>
+  nonPresenterAuthors?: Array<{ name: string; name_alt?: string }>
   year?: string
   summary?: string[]
   recordPage?: string
@@ -130,13 +130,18 @@ function getShareImageUrl(record: FinnaRecord, origin: string): string {
 }
 
 function getAuthor(record: FinnaRecord): string | undefined {
-  const namedAuthor = cleanText(record.nonPresenterAuthors?.[0]?.name)
+  const namedAuthor = getDisplayAuthorName(record.nonPresenterAuthors?.[0])
   if (namedAuthor) return namedAuthor
 
   return Object.values(record.authors ?? {})
     .flatMap((bucket) => Object.keys(bucket))
     .map(cleanText)
     .find(Boolean)
+}
+
+function getDisplayAuthorName(author?: { name: string; name_alt?: string }): string | undefined {
+  const nativeName = cleanText(author?.name_alt)
+  return nativeName && /[А-Яа-яЁё]/.test(nativeName) ? nativeName : cleanText(author?.name)
 }
 
 function normalizeId(value?: string): string | undefined {

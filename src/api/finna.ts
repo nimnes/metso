@@ -21,7 +21,7 @@ type FinnaRecord = {
   id: string
   title?: string
   authors?: FinnaAuthorBuckets
-  nonPresenterAuthors?: Array<{ name: string; role?: string }>
+  nonPresenterAuthors?: Array<{ name: string; name_alt?: string; role?: string }>
   year?: string
   languages?: string[]
   subjects?: string[][]
@@ -240,7 +240,7 @@ function normalizeSeries(series: { name?: string; additional?: string }): string
 
 function normalizeAuthors(record: FinnaRecord): string[] {
   if (record.nonPresenterAuthors?.length) {
-    return unique(record.nonPresenterAuthors.map((author) => cleanAuthorName(author.name))).slice(0, 4)
+    return unique(record.nonPresenterAuthors.map(getDisplayAuthorName)).slice(0, 4)
   }
 
   const buckets = record.authors ?? {}
@@ -249,6 +249,11 @@ function normalizeAuthors(record: FinnaRecord): string[] {
       .flatMap((bucket) => Object.keys(bucket))
       .map(cleanAuthorName),
   ).slice(0, 4)
+}
+
+function getDisplayAuthorName(author: { name: string; name_alt?: string }): string {
+  const nativeName = cleanAuthorName(author.name_alt ?? '')
+  return /[А-Яа-яЁё]/.test(nativeName) ? nativeName : cleanAuthorName(author.name)
 }
 
 function cleanAuthorName(name: string): string {
