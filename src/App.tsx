@@ -1093,10 +1093,11 @@ const BookCard = memo(function BookCard({
           <h2>{book.title}</h2>
           <p className="authors">{book.authors.length ? book.authors.join(', ') : t.unknownAuthor}</p>
           <div className="book-facts">
-            {book.publicationYear ? <span>{t.published(book.publicationYear)}</span> : null}
-            {book.languages.slice(0, 2).map((language) => (
-              <span key={language}>{getBookLanguageLabel(language, uiLanguage)}</span>
-            ))}
+            {[book.publicationYear ? t.published(book.publicationYear) : undefined, ...book.languages.slice(0, 2).map((language) => getBookLanguageLabel(language, uiLanguage))]
+              .filter(Boolean)
+              .map((fact, index) => (
+                <span key={`${fact}-${index}`}>{fact}</span>
+              ))}
           </div>
         </div>
 

@@ -705,19 +705,19 @@ button {
 .book-facts {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px 14px;
+  gap: 7px 0;
   color: #596265;
   font-size: 0.92rem;
   line-height: 1.35;
 }
 
 .book-facts span + span {
-  position: relative;
+  white-space: nowrap;
 }
 
 .book-facts span + span::before {
-  position: absolute;
-  left: -9px;
+  display: inline-block;
+  margin: 0 7px;
   color: #a28f78;
   content: '/';
 }

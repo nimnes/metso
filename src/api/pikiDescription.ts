@@ -1,8 +1,10 @@
+import { removeDuplicateRussianTransliteration } from './descriptionCleanup'
+
 type PikiDescriptionResponse = {
   description?: string
 }
 
-const CACHE_PREFIX = 'metso-piki-description-v3:'
+const CACHE_PREFIX = 'metso-piki-description-v4:'
 const CACHE_TTL = 1000 * 60 * 60 * 24 * 14
 
 export async function getPikiDescription(isbn?: string): Promise<string | undefined> {
@@ -27,7 +29,7 @@ export async function getPikiDescription(isbn?: string): Promise<string | undefi
   if (!response.headers.get('content-type')?.includes('application/json')) return undefined
 
   const data = (await response.json()) as PikiDescriptionResponse
-  const description = cleanText(data.description)
+  const description = cleanDescription(data.description)
   writeCache(cacheKey, description ?? '')
   return description
 }
@@ -48,6 +50,11 @@ function cleanText(value?: string): string | undefined {
     .replace(/\n{3,}/g, '\n\n')
     .trim()
   return cleaned || undefined
+}
+
+function cleanDescription(value?: string): string | undefined {
+  const cleaned = cleanText(value)
+  return cleaned ? removeDuplicateRussianTransliteration(cleaned) : undefined
 }
 
 function readCache(key: string): string | undefined {

@@ -2,10 +2,13 @@ import { TAMPERE_CITY_CODE, TAMPERE_HOLDING_LABELS } from '../data/tampereBranch
 import { GENRE_OPTIONS } from '../data/genreOptions'
 import { TOP_LOANED_BOOK_IDENTIFIER_SET } from '../data/topLoanedBooks'
 import type { Book, BookDetails, BookRating, BookSearchFilters, LibraryPresence } from '../types'
+import { removeDuplicateRussianTransliteration } from './descriptionCleanup'
 
 const FINNA_API_BASE = 'https://api.finna.fi/v1'
 const PIKI_BASE = 'https://piki.finna.fi'
 export const FINNA_PAGE_SIZE = 20
+const CHILDREN_GENRE_VALUE = 'children'
+const CHILDREN_GENRE_FILTERS = GENRE_OPTIONS.find((option) => option.value === CHILDREN_GENRE_VALUE)?.finnaValues ?? []
 
 type FinnaTranslatedField = {
   value: string
@@ -114,6 +117,12 @@ export async function searchFinna(filters: BookSearchFilters, page = 1): Promise
       params.append('filter[]', `~genre_facet:"${value}"`)
     })
 
+  if (filters.genreValues.length > 0 && !filters.genreValues.includes(CHILDREN_GENRE_VALUE)) {
+    CHILDREN_GENRE_FILTERS.forEach((value) => {
+      params.append('filter[]', `-genre_facet:"${value}"`)
+    })
+  }
+
   const response = await fetch(`${FINNA_API_BASE}/search?${params.toString()}`)
   if (!response.ok) {
     throw new Error(`Finna request failed with ${response.status}`)
@@ -198,7 +207,7 @@ function normalizeFinnaBookDetails(record: FinnaRecord): BookDetails {
   return {
     ...book,
     classifications: normalizeClassifications(record.rawData?.classification_txt_mv),
-    description: cleanText(record.summary?.[0]),
+    description: cleanDescription(record.summary?.[0]),
     edition: cleanText(record.rawData?.edition),
     genres: uniqueNormalized([...(record.rawData?.genre_facet ?? []), ...(record.rawData?.genre ?? [])].map(cleanText)).filter(Boolean),
     contents: (record.contents ?? []).map(cleanText).filter(Boolean),
@@ -272,6 +281,13 @@ function normalizeTampereHoldingBranches(holdings?: string[]): LibraryPresence[]
 
 function cleanText(value?: string): string {
   return (value ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+}
+
+function cleanDescription(value?: string): string | undefined {
+  const cleaned = cleanText(value)
+  if (!cleaned) return undefined
+
+  return removeDuplicateRussianTransliteration(cleaned)
 }
 
 function normalizeIsbns(values: string[]): string[] {
