@@ -998,7 +998,7 @@ function BookCover({
           onError={() => setCoverIndex((current) => current + 1)}
           onLoad={(event) => {
             const image = event.currentTarget
-            if (image.naturalWidth <= 2 && image.naturalHeight <= 2) {
+            if (image.naturalWidth <= 16 && image.naturalHeight <= 16) {
               setCoverIndex((current) => current + 1)
             }
           }}
