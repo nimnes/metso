@@ -954,6 +954,12 @@ function BookCover({
           alt=""
           loading={variant === 'card' ? 'lazy' : undefined}
           onError={() => setCoverIndex((current) => current + 1)}
+          onLoad={(event) => {
+            const image = event.currentTarget
+            if (image.naturalWidth <= 2 && image.naturalHeight <= 2) {
+              setCoverIndex((current) => current + 1)
+            }
+          }}
         />
       ) : (
         <CoverPlaceholder book={book} uiLanguage={uiLanguage} />

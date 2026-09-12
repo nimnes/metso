@@ -39,11 +39,15 @@ type FinnaRecord = {
   publishers?: string[]
   series?: Array<{ name?: string; additional?: string }>
   rawData?: {
+    author?: string[]
+    'callnumber-search'?: string[]
+    'callnumber-raw'?: string[]
     classification_txt_mv?: string[]
     edition?: string
     genre?: string[]
     genre_facet?: string[]
     holdings_txtP_mv?: string[]
+    isbn?: string[]
   }
 }
 
@@ -149,7 +153,8 @@ function normalizeFinnaBook(record: FinnaRecord): Book {
   const finnaRating = normalizeFinnaRating(record.rating)
   const pikiUrl = record.recordPage ? `${PIKI_BASE}${record.recordPage}` : `${PIKI_BASE}/Record/${record.id}`
   const coverUrls = unique([
-    ...(record.images ?? []).map((image) => `${PIKI_BASE}${image}`),
+    ...(record.images ?? []).map(normalizePikiUrl),
+    buildPikiCoverUrl(record, isbns),
     ...isbns.map(openLibraryCoverUrl).filter(Boolean),
   ] as string[])
 
@@ -280,6 +285,30 @@ function normalizeIsbns(values: string[]): string[] {
 
 function openLibraryCoverUrl(isbn?: string): string | undefined {
   return isbn ? `https://covers.openlibrary.org/b/isbn/${isbn}-M.jpg?default=false` : undefined
+}
+
+function buildPikiCoverUrl(record: FinnaRecord, isbns: string[]): string | undefined {
+  const params = new URLSearchParams()
+  const author = normalizeAuthors(record)[0] ?? cleanText(record.rawData?.author?.[0])
+  const callnumber = record.rawData?.['callnumber-search']?.[0] ?? record.rawData?.['callnumber-raw']?.[0]
+  const visibleIsbn = normalizeIsbns([record.cleanIsbn, ...(record.rawData?.isbn ?? []), ...(record.isbns ?? [])].filter(Boolean) as string[])[0]
+  const invisibleIsbn = normalizeIsbns([...(record.rawData?.isbn ?? []), ...(record.isbns ?? [])].filter(Boolean) as string[]).find((isbn) => isbn.length === 13)
+
+  params.set('source', 'Solr')
+  params.set('size', 'large')
+  params.set('title', record.title ?? '')
+  params.set('recordid', record.id)
+  params.set('index', '0')
+  if (author) params.set('author', author)
+  if (callnumber) params.set('callnumber', callnumber)
+  if (visibleIsbn ?? isbns[0]) params.set('isbns[0]', visibleIsbn ?? isbns[0])
+  if (invisibleIsbn) params.set('invisbn', invisibleIsbn)
+
+  return `${PIKI_BASE}/Cover/Show?${params.toString()}`
+}
+
+function normalizePikiUrl(pathOrUrl: string): string {
+  return pathOrUrl.startsWith('http') ? pathOrUrl : `${PIKI_BASE}${pathOrUrl}`
 }
 
 function sortToFinna(sort: string): string {
