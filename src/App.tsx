@@ -1171,11 +1171,7 @@ const BookCard = memo(function BookCard({
           </div>
         </div>
 
-        {hasRatings(book.ratings) ? (
-          <div className="card-rating-row">
-            <Ratings book={book} ratings={book.ratings} uiLanguage={uiLanguage} />
-          </div>
-        ) : null}
+        <div className="card-rating-row">{hasRatings(book.ratings) ? <Ratings book={book} ratings={book.ratings} uiLanguage={uiLanguage} /> : null}</div>
 
         <div className="branches">
           <strong>{t.tampereLibraries}</strong>

@@ -39,6 +39,26 @@ export const GENRE_OPTIONS: GenreOption[] = [
     finnaValues: ['Selkokirjat'],
   },
   {
+    value: 'cooking-recipes',
+    labels: { en: 'Cooking and recipes', ru: 'Кулинария и рецепты' },
+    finnaValues: ['Keittokirjat', 'Ruokaohjeet'],
+  },
+  {
+    value: 'travel-guides',
+    labels: { en: 'Travel guides', ru: 'Путеводители' },
+    finnaValues: ['Matkaoppaat'],
+  },
+  {
+    value: 'crafts',
+    labels: { en: 'Crafts', ru: 'Рукоделие' },
+    finnaValues: ['Käsityöohjeet'],
+  },
+  {
+    value: 'self-help',
+    labels: { en: 'Self-help', ru: 'Саморазвитие' },
+    finnaValues: ['Elämäntaito-oppaat'],
+  },
+  {
     value: 'mystery-thriller',
     labels: { en: 'Mystery and thriller', ru: 'Детективы и триллеры' },
     finnaValues: ['Jännityskirjallisuus', 'Thrillers (litteratur)', 'Rikoskirjallisuus'],
