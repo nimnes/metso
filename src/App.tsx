@@ -818,8 +818,6 @@ function parseScannedBarcode(value: string): string | undefined {
   const normalized = value.replace(/[\s-]/g, '').toUpperCase()
   if (/^97[89][0-9]{10}$/.test(normalized)) return normalized
 
-  if (/^837N[0-9]+$/.test(normalized)) return normalized
-
   return undefined
 }
 
