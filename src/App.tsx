@@ -489,24 +489,31 @@ async function getOptionalOpenLibraryDescription(isbn?: string): Promise<string 
 }
 
 function getBookIdFromLocation(): string | undefined {
-  const value = new URL(window.location.href).searchParams.get('book')?.trim()
+  const url = new URL(window.location.href)
+  const pathMatch = url.pathname.match(/^\/book\/([^/]+)\/?$/)
+  const value = pathMatch?.[1] ? decodeURIComponent(pathMatch[1]).trim() : url.searchParams.get('book')?.trim()
   return value || undefined
+}
+
+function getBookShareUrl(finnaId: string): string {
+  return `${window.location.origin}/book/${encodeURIComponent(finnaId)}`
 }
 
 function pushBookToHistory(finnaId: string): void {
   const url = new URL(window.location.href)
-  if (url.searchParams.get('book') === finnaId) return
+  const nextPath = `/book/${encodeURIComponent(finnaId)}`
+  if (url.pathname === nextPath) return
 
-  url.searchParams.set('book', finnaId)
-  window.history.pushState({ book: finnaId }, '', `${url.pathname}${url.search}${url.hash}`)
+  window.history.pushState({ book: finnaId }, '', nextPath)
 }
 
 function removeBookFromCurrentUrl(): void {
   const url = new URL(window.location.href)
-  if (!url.searchParams.has('book')) return
+  const hasBookRoute = /^\/book\/[^/]+\/?$/.test(url.pathname)
+  if (!hasBookRoute && !url.searchParams.has('book')) return
 
   url.searchParams.delete('book')
-  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+  window.history.replaceState(window.history.state, '', `/${url.search}${url.hash}`)
 }
 
 function isAppBookHistoryEntry(): boolean {
@@ -895,13 +902,14 @@ function BookDetailsPanel({
   }, [detailState.loading])
 
   async function shareBook() {
+    const shareUrl = getBookShareUrl(displayBook.finnaId)
     const shareText = primaryAuthor
-      ? `${displayBook.title} - ${primaryAuthor}\n${displayBook.pikiUrl}`
-      : `${displayBook.title}\n${displayBook.pikiUrl}`
+      ? `${displayBook.title} - ${primaryAuthor}\n${shareUrl}`
+      : `${displayBook.title}\n${shareUrl}`
     const shareData = {
       title: displayBook.title,
       text: shareText,
-      url: displayBook.pikiUrl,
+      url: shareUrl,
     }
 
     try {
@@ -914,11 +922,11 @@ function BookDetailsPanel({
     }
 
     try {
-      await navigator.clipboard.writeText(displayBook.pikiUrl)
+      await navigator.clipboard.writeText(shareUrl)
       setShareCopied(true)
       window.setTimeout(() => setShareCopied(false), 1800)
     } catch {
-      window.open(displayBook.pikiUrl, '_blank', 'noopener,noreferrer')
+      window.open(shareUrl, '_blank', 'noopener,noreferrer')
     }
   }
 
