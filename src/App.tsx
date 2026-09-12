@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import {
   Barcode,
   BookOpen,
+  Bookmark,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -58,6 +59,7 @@ const GENERIC_SEARCH_ERROR = 'metso:search-failed'
 const GENERIC_DETAILS_ERROR = 'metso:details-failed'
 const FILTER_STORAGE_KEY = 'metso-search-filters'
 const FILTER_SECTION_STORAGE_KEY = 'metso-filter-sections'
+const WISHLIST_STORAGE_KEY = 'metso-wishlist'
 const initialFilterSections: Record<FilterSectionKey, boolean> = {
   language: true,
   genre: true,
@@ -75,6 +77,8 @@ function App() {
   const [detailState, setDetailState] = useState<{ loading: boolean; error?: string; details?: BookDetails }>({ loading: false })
   const [uiLanguage, setUiLanguage] = useState(getStoredUiLanguage)
   const [scannerOpen, setScannerOpen] = useState(false)
+  const [wishlistBooks, setWishlistBooks] = useState<Book[]>(getStoredWishlist)
+  const [showWishlist, setShowWishlist] = useState(false)
   const resultsTopRef = useRef<HTMLDivElement | null>(null)
   const booksRef = useRef<Book[]>([])
   const [openFilterSections, setOpenFilterSections] = useState<Record<FilterSectionKey, boolean>>(getStoredFilterSections)
@@ -110,6 +114,10 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem(FILTER_SECTION_STORAGE_KEY, JSON.stringify(openFilterSections))
   }, [openFilterSections])
+
+  useEffect(() => {
+    storeWishlist(wishlistBooks)
+  }, [wishlistBooks])
 
   useEffect(() => {
     booksRef.current = state.books
@@ -167,6 +175,7 @@ function App() {
             (enrichedBook) => {
               if (cancelled) return
               setState((current) => updateBookInSearchState(current, enrichedBook))
+              setWishlistBooks((current) => updateBookInWishlist(current, enrichedBook))
               setDetailState((current) =>
                 current.details?.id === enrichedBook.id
                   ? {
@@ -275,7 +284,9 @@ function App() {
   }, [selectedBook])
 
   const displayedBooks = useMemo(() => sortDisplayedBooks(state.books, filters.sort, state.enriching), [filters.sort, state.books, state.enriching])
-  const visibleBookCount = displayedBooks.length
+  const wishlistIds = useMemo(() => new Set(wishlistBooks.map((book) => book.finnaId)), [wishlistBooks])
+  const visibleBooks = showWishlist ? wishlistBooks : displayedBooks
+  const visibleBookCount = visibleBooks.length
   const totalPages = Math.max(Math.ceil(state.total / FINNA_PAGE_SIZE), 1)
 
   const changePage = useCallback((page: number) => {
@@ -333,6 +344,16 @@ function App() {
     setFilters((current) => ({ ...current, query: value }))
     removeBookFromCurrentUrl()
     setSelectedBook(undefined)
+  }, [])
+
+  const toggleWishlist = useCallback((book: Book) => {
+    setWishlistBooks((current) => {
+      if (current.some((savedBook) => savedBook.finnaId === book.finnaId)) {
+        return current.filter((savedBook) => savedBook.finnaId !== book.finnaId)
+      }
+
+      return [book, ...current]
+    })
   }, [])
 
   const closeSelectedBook = useCallback(() => {
@@ -395,7 +416,13 @@ function App() {
             </div>
           </div>
 
-          <LanguageSwitcher currentLanguage={uiLanguage} onChange={setUiLanguage} />
+          <div className="top-actions">
+            <button className="wishlist-toggle" type="button" aria-label={t.wishlist} aria-pressed={showWishlist} title={t.wishlist} onClick={() => setShowWishlist((current) => !current)}>
+              <Bookmark size={18} aria-hidden="true" fill={showWishlist ? 'currentColor' : 'none'} />
+              <strong>{wishlistBooks.length}</strong>
+            </button>
+            <LanguageSwitcher currentLanguage={uiLanguage} onChange={setUiLanguage} />
+          </div>
         </div>
 
         <form className="search-row" onSubmit={submitSearch}>
@@ -463,23 +490,30 @@ function App() {
           <div ref={resultsTopRef} />
           {hasSearched ? (
             <section className="status-bar" aria-live="polite">
-              <span>{state.loading ? t.searching : t.resultCount(visibleBookCount, state.total)}</span>
+              <span>{showWishlist ? t.wishlistCount(wishlistBooks.length) : state.loading ? t.searching : t.resultCount(visibleBookCount, state.total)}</span>
             </section>
           ) : null}
 
-          {state.error ? (
+          {!showWishlist && state.error ? (
             <div className="notice">
               {t.searchErrorPrefix} {translateError(state.error, uiLanguage)}
             </div>
           ) : null}
 
           <section className="book-grid">
-            {displayedBooks.map((book) => (
-              <BookCard book={book} key={book.id} onSelect={selectBook} uiLanguage={uiLanguage} />
+            {visibleBooks.map((book) => (
+              <BookCard
+                book={book}
+                isWishlisted={wishlistIds.has(book.finnaId)}
+                key={book.id}
+                onSelect={selectBook}
+                onToggleWishlist={toggleWishlist}
+                uiLanguage={uiLanguage}
+              />
             ))}
           </section>
 
-          {hasSearched && !state.error && state.total > FINNA_PAGE_SIZE ? (
+          {hasSearched && !showWishlist && !state.error && state.total > FINNA_PAGE_SIZE ? (
             <Pagination
               currentPage={currentPage}
               disabled={state.loading}
@@ -489,10 +523,10 @@ function App() {
             />
           ) : null}
 
-          {hasSearched && !state.loading && !state.error && visibleBookCount === 0 ? (
+          {hasSearched && !state.loading && (showWishlist || !state.error) && visibleBookCount === 0 ? (
             <div className="empty">
               <BookOpen size={32} aria-hidden="true" />
-              <p>{t.noMatches}</p>
+              <p>{showWishlist ? t.emptyWishlist : t.noMatches}</p>
             </div>
           ) : null}
         </div>
@@ -505,6 +539,8 @@ function App() {
           onClose={closeSelectedBook}
           onSearchAuthor={searchAuthor}
           onSearchLibrary={searchLibrary}
+          isWishlisted={wishlistIds.has(selectedBook.finnaId)}
+          onToggleWishlist={toggleWishlist}
           uiLanguage={uiLanguage}
         />
       ) : null}
@@ -607,6 +643,12 @@ function updateBookInSearchState(state: SearchState, enrichedBook: Book): Search
     ...state,
     books: state.books.map((book) => (book.id === enrichedBook.id ? { ...book, ...enrichedBook } : book)),
   }
+}
+
+function updateBookInWishlist(wishlist: Book[], updatedBook: Book): Book[] {
+  if (!wishlist.some((book) => book.finnaId === updatedBook.finnaId)) return wishlist
+
+  return wishlist.map((book) => (book.finnaId === updatedBook.finnaId ? { ...book, ...updatedBook } : book))
 }
 
 function sortDisplayedBooks(books: Book[], sort: SortMode, enriching: number): Book[] {
@@ -986,11 +1028,15 @@ function CoverPlaceholder({ book, uiLanguage }: { book: Book; uiLanguage: UiLang
 
 const BookCard = memo(function BookCard({
   book,
+  isWishlisted,
   onSelect,
+  onToggleWishlist,
   uiLanguage,
 }: {
   book: Book
+  isWishlisted: boolean
   onSelect: (book: Book) => void
+  onToggleWishlist: (book: Book) => void
   uiLanguage: UiLanguage
 }) {
   const t = translations[uiLanguage]
@@ -1015,7 +1061,32 @@ const BookCard = memo(function BookCard({
       }}
       aria-label={t.openDetailsFor(book.title)}
     >
-      <BookCover book={book} markers={<BookMarkers book={book} uiLanguage={uiLanguage} />} variant="card" uiLanguage={uiLanguage} />
+      <div className="book-card-cover-column">
+        <BookCover
+          book={book}
+          markers={
+            <>
+              <BookMarkers book={book} uiLanguage={uiLanguage} />
+              <button
+                className="wishlist-card-button"
+                type="button"
+                aria-label={isWishlisted ? t.removeFromWishlist : t.addToWishlist}
+                aria-pressed={isWishlisted}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onToggleWishlist(book)
+                }}
+                onKeyDown={(event) => event.stopPropagation()}
+                title={isWishlisted ? t.removeFromWishlist : t.addToWishlist}
+              >
+                <Bookmark size={18} aria-hidden="true" fill={isWishlisted ? 'currentColor' : 'none'} />
+              </button>
+            </>
+          }
+          variant="card"
+          uiLanguage={uiLanguage}
+        />
+      </div>
 
       <div className="book-copy">
         <div className="book-main">
@@ -1058,16 +1129,20 @@ const BookCard = memo(function BookCard({
 function BookDetailsPanel({
   book,
   detailState,
+  isWishlisted,
   onClose,
   onSearchAuthor,
   onSearchLibrary,
+  onToggleWishlist,
   uiLanguage,
 }: {
   book: Book
   detailState: { loading: boolean; error?: string; details?: BookDetails }
+  isWishlisted: boolean
   onClose: () => void
   onSearchAuthor: (author: string) => void
   onSearchLibrary: (library: LibraryPresence) => void
+  onToggleWishlist: (book: Book) => void
   uiLanguage: UiLanguage
 }) {
   const t = translations[uiLanguage]
@@ -1134,6 +1209,10 @@ function BookDetailsPanel({
             {t.openInPiki}
             <ExternalLink size={16} aria-hidden="true" />
           </a>
+          <button className="piki-link details-link wishlist-detail-link" type="button" onClick={() => onToggleWishlist(displayBook)}>
+            {isWishlisted ? t.removeFromWishlist : t.addToWishlist}
+            <Bookmark size={16} aria-hidden="true" fill={isWishlisted ? 'currentColor' : 'none'} />
+          </button>
           <button className="piki-link details-link share-link" type="button" onClick={shareBook}>
             {shareCopied ? t.shareCopied : t.shareBook}
             <Share2 size={16} aria-hidden="true" />
@@ -1459,6 +1538,53 @@ function normalizeStoredStringList(value: unknown, allowedValues: Set<string>): 
 
 function normalizeStoredSort(value: unknown): SortMode {
   return value === 'newest' || value === 'oldest' || value === 'title' || value === 'rating' || value === 'relevance' ? value : initialFilters.sort
+}
+
+function getStoredWishlist(): Book[] {
+  if (typeof window === 'undefined') return []
+
+  try {
+    const stored = window.localStorage.getItem(WISHLIST_STORAGE_KEY)
+    if (!stored) return []
+
+    return normalizeStoredWishlist(JSON.parse(stored))
+  } catch {
+    return []
+  }
+}
+
+function storeWishlist(books: Book[]): void {
+  try {
+    window.localStorage.setItem(WISHLIST_STORAGE_KEY, JSON.stringify(books.slice(0, 100)))
+  } catch {
+    // Best-effort local wishlist only.
+  }
+}
+
+function normalizeStoredWishlist(value: unknown): Book[] {
+  if (!Array.isArray(value)) return []
+
+  const books = value.filter(isStoredBook)
+  return Array.from(new Map(books.map((book) => [book.finnaId, book])).values())
+}
+
+function isStoredBook(value: unknown): value is Book {
+  if (!value || typeof value !== 'object') return false
+
+  const book = value as Partial<Book>
+  return (
+    typeof book.id === 'string' &&
+    typeof book.finnaId === 'string' &&
+    typeof book.title === 'string' &&
+    Array.isArray(book.authors) &&
+    Array.isArray(book.isbns) &&
+    Array.isArray(book.languages) &&
+    Array.isArray(book.subjects) &&
+    Array.isArray(book.formats) &&
+    Array.isArray(book.coverUrls) &&
+    Array.isArray(book.branches) &&
+    typeof book.pikiUrl === 'string'
+  )
 }
 
 function getBookLanguageLabel(language: string, uiLanguage: UiLanguage): string {
