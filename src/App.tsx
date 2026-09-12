@@ -569,6 +569,10 @@ function getBookShareUrl(finnaId: string): string {
   return `${window.location.origin}/book/${encodeURIComponent(finnaId)}`
 }
 
+function getGoodreadsUrl(isbn: string): string {
+  return `https://www.goodreads.com/book/isbn/${encodeURIComponent(isbn)}`
+}
+
 function pushBookToHistory(finnaId: string): void {
   const url = new URL(window.location.href)
   const nextPath = `/book/${encodeURIComponent(finnaId)}`
@@ -1219,6 +1223,12 @@ function BookDetailsPanel({
             {t.openInPiki}
             <ExternalLink size={16} aria-hidden="true" />
           </a>
+          {displayBook.isbns[0] ? (
+            <a className="piki-link details-link goodreads-link" href={getGoodreadsUrl(displayBook.isbns[0])} target="_blank" rel="noreferrer">
+              {t.openInGoodreads}
+              <ExternalLink size={16} aria-hidden="true" />
+            </a>
+          ) : null}
           <button className="piki-link details-link wishlist-detail-link" type="button" onClick={() => onToggleWishlist(displayBook)}>
             {isWishlisted ? t.removeFromWishlist : t.addToWishlist}
             <Bookmark size={16} aria-hidden="true" fill={isWishlisted ? 'currentColor' : 'none'} />

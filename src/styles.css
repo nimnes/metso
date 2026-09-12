@@ -1012,6 +1012,12 @@ a.rating:hover strong {
   border: 1px solid #c9d8d2;
 }
 
+.goodreads-link {
+  color: #5a3720;
+  background: #f6f1ea;
+  border: 1px solid #d8c8b5;
+}
+
 .wishlist-detail-link {
   color: #12664f;
   background: #eef3f1;
@@ -1020,6 +1026,8 @@ a.rating:hover strong {
 
 .share-link:hover,
 .share-link:focus-visible,
+.goodreads-link:hover,
+.goodreads-link:focus-visible,
 .wishlist-detail-link:hover,
 .wishlist-detail-link:focus-visible {
   background: rgba(18, 102, 79, 0.07);
