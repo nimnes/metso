@@ -83,6 +83,8 @@ function App() {
   const resultsTopRef = useRef<HTMLDivElement | null>(null)
   const mobileLoadMoreRef = useRef<HTMLDivElement | null>(null)
   const booksRef = useRef<Book[]>([])
+  const selectedBookRef = useRef<Book | undefined>(undefined)
+  const preloadedDetailIdsRef = useRef<Set<string>>(new Set())
   const [openFilterSections, setOpenFilterSections] = useState<Record<FilterSectionKey, boolean>>(getStoredFilterSections)
   const isMobileResults = useMediaQuery('(max-width: 620px)')
   const pageSize = isMobileResults ? MOBILE_FINNA_PAGE_SIZE : FINNA_PAGE_SIZE
@@ -126,6 +128,10 @@ function App() {
   useEffect(() => {
     booksRef.current = state.books
   }, [state.books])
+
+  useEffect(() => {
+    selectedBookRef.current = selectedBook
+  }, [selectedBook])
 
   useEffect(() => {
     setCurrentPage(1)
@@ -303,6 +309,39 @@ function App() {
   const loadingMoreOnMobile = isMobileResults && currentPage > 1 && state.loading
   const canLoadMoreOnMobile = isMobileResults && hasSearched && !showWishlist && !state.error && !state.loading && currentPage < totalPages
   const mobileLoadMoreIndex = canLoadMoreOnMobile && visibleBooks.length > pageSize ? Math.max(visibleBooks.length - pageSize, 0) : -1
+
+  useEffect(() => {
+    if (showWishlist || state.loading || !visibleBooks.length) return
+
+    let cancelled = false
+    const booksToPreload = visibleBooks.filter((book) => !book.description && !preloadedDetailIdsRef.current.has(book.finnaId))
+    booksToPreload.forEach((book) => preloadedDetailIdsRef.current.add(book.finnaId))
+
+    async function preloadVisibleDetails() {
+      for (const book of booksToPreload) {
+        try {
+          const details = await getFinnaBookDetails(book.finnaId)
+          const description = details.description
+          if (cancelled || !description) continue
+
+          setState((current) => updateBookDescriptionInSearchState(current, book.finnaId, description))
+          setWishlistBooks((current) => updateBookDescriptionInWishlist(current, book.finnaId, description))
+          setDetailState((current) =>
+            selectedBookRef.current?.finnaId === book.finnaId && !current.details?.description
+              ? { ...current, details: { ...details, ...applyCachedBookEnrichment(details) }, loading: false }
+              : current,
+          )
+        } catch {
+          // Description preload is opportunistic; the detail view still loads normally.
+        }
+      }
+    }
+
+    preloadVisibleDetails()
+    return () => {
+      cancelled = true
+    }
+  }, [showWishlist, state.loading, visibleBooks])
 
   const changePage = useCallback((page: number) => {
     setCurrentPage(page)
@@ -715,6 +754,13 @@ function updateBookInSearchState(state: SearchState, enrichedBook: Book): Search
   }
 }
 
+function updateBookDescriptionInSearchState(state: SearchState, finnaId: string, description: string): SearchState {
+  return {
+    ...state,
+    books: state.books.map((book) => (book.finnaId === finnaId ? { ...book, description } : book)),
+  }
+}
+
 function uniqueBooksById(books: Book[]): Book[] {
   return Array.from(new Map(books.map((book) => [book.id, book])).values())
 }
@@ -723,6 +769,10 @@ function updateBookInWishlist(wishlist: Book[], updatedBook: Book): Book[] {
   if (!wishlist.some((book) => book.finnaId === updatedBook.finnaId)) return wishlist
 
   return wishlist.map((book) => (book.finnaId === updatedBook.finnaId ? { ...book, ...updatedBook } : book))
+}
+
+function updateBookDescriptionInWishlist(wishlist: Book[], finnaId: string, description: string): Book[] {
+  return wishlist.map((book) => (book.finnaId === finnaId ? { ...book, description } : book))
 }
 
 function sortDisplayedBooks(books: Book[], sort: SortMode, enriching: number): Book[] {
