@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Barcode,
@@ -237,6 +237,7 @@ function App() {
         const details = await getFinnaBookDetails(activeBook.finnaId)
         const description =
           details.description ||
+          activeBook.description ||
           (await getOptionalPikiDescription(details.isbns[0])) ||
           (await getOptionalOpenLibraryDescription(details.isbns[0])) ||
           (await getOptionalHardcoverDescription(details))
@@ -301,6 +302,7 @@ function App() {
   const totalPages = Math.max(Math.ceil(state.total / pageSize), 1)
   const loadingMoreOnMobile = isMobileResults && currentPage > 1 && state.loading
   const canLoadMoreOnMobile = isMobileResults && hasSearched && !showWishlist && !state.error && !state.loading && currentPage < totalPages
+  const mobileLoadMoreIndex = canLoadMoreOnMobile && visibleBooks.length > pageSize ? Math.max(visibleBooks.length - pageSize, 0) : -1
 
   const changePage = useCallback((page: number) => {
     setCurrentPage(page)
@@ -530,15 +532,17 @@ function App() {
           ) : null}
 
           <section className="book-grid">
-            {visibleBooks.map((book) => (
-              <BookCard
-                book={book}
-                isWishlisted={wishlistIds.has(book.finnaId)}
-                key={book.id}
-                onSelect={selectBook}
-                onToggleWishlist={toggleWishlist}
-                uiLanguage={uiLanguage}
-              />
+            {visibleBooks.map((book, index) => (
+              <Fragment key={book.id}>
+                {index === mobileLoadMoreIndex ? <div className="mobile-load-more" ref={mobileLoadMoreRef} aria-hidden="true" /> : null}
+                <BookCard
+                  book={book}
+                  isWishlisted={wishlistIds.has(book.finnaId)}
+                  onSelect={selectBook}
+                  onToggleWishlist={toggleWishlist}
+                  uiLanguage={uiLanguage}
+                />
+              </Fragment>
             ))}
           </section>
 
@@ -552,7 +556,7 @@ function App() {
             />
           ) : null}
 
-          {isMobileResults && !showWishlist && !state.error && currentPage < totalPages ? (
+          {canLoadMoreOnMobile && mobileLoadMoreIndex < 0 ? (
             <div className="mobile-load-more" ref={mobileLoadMoreRef} aria-hidden="true" />
           ) : null}
 
@@ -1215,6 +1219,7 @@ function BookDetailsPanel({
   const t = translations[uiLanguage]
   const details = detailState.details
   const displayBook = details ?? book
+  const visibleDescription = details?.description ?? displayBook.description
   const primaryAuthor = displayBook.authors[0]
   const publicationLine = formatPublicationLine(displayBook)
   const isbnLine = displayBook.isbns[0] ? formatIsbn(displayBook.isbns[0]) : undefined
@@ -1318,14 +1323,14 @@ function BookDetailsPanel({
           {detailState.error ? <p className="detail-error">{translateError(detailState.error, uiLanguage)}</p> : null}
 
           <DetailSection title={t.description}>
-            {details?.description ? <p>{details.description}</p> : null}
-            {!details?.description && detailState.loading && showLoadingIndicator ? (
+            {visibleDescription ? <p>{visibleDescription}</p> : null}
+            {!visibleDescription && detailState.loading && showLoadingIndicator ? (
               <div className="detail-loading" role="status">
                 <span className="loading-spinner" aria-hidden="true" />
                 <span>{t.loadingDetails}</span>
               </div>
             ) : null}
-            {!details?.description && !detailState.loading ? <p>{t.noDescription}</p> : null}
+            {!visibleDescription && !detailState.loading ? <p>{t.noDescription}</p> : null}
           </DetailSection>
 
           <dl className="piki-metadata">

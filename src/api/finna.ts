@@ -1,4 +1,4 @@
-import { TAMPERE_CITY_CODE, TAMPERE_HOLDING_LABELS } from '../data/tampereBranches'
+import { FEATURED_LANGUAGE_CODES, OTHER_LANGUAGE_FILTER_VALUE, TAMPERE_CITY_CODE, TAMPERE_HOLDING_LABELS } from '../data/tampereBranches'
 import { GENRE_OPTIONS } from '../data/genreOptions'
 import { TOP_LOANED_BOOK_IDENTIFIER_SET } from '../data/topLoanedBooks'
 import type { Book, BookDetails, BookRating, BookSearchFilters, LibraryPresence } from '../types'
@@ -78,12 +78,12 @@ const REQUESTED_FIELDS = [
   'buildings',
   'recordPage',
   'rating',
+  'summary',
   'rawData',
 ]
 
 const DETAIL_FIELDS = [
   ...REQUESTED_FIELDS,
-  'summary',
   'contents',
   'physicalDescriptions',
   'publicationInfo',
@@ -148,9 +148,11 @@ async function fetchFinnaSearch(filters: BookSearchFilters, page: number, limit:
     })
   params.append('filter[]', 'format:"0/Book/"')
 
-  filters.languageCodes.forEach((language) => {
-    params.append('filter[]', `~language:"${language}"`)
-  })
+  if (!filters.languageCodes.includes(OTHER_LANGUAGE_FILTER_VALUE)) {
+    filters.languageCodes.forEach((language) => {
+      params.append('filter[]', `~language:"${language}"`)
+    })
+  }
 
   filters.genreValues
     .flatMap((genreValue) => GENRE_OPTIONS.find((option) => option.value === genreValue)?.finnaValues ?? [])
@@ -217,6 +219,7 @@ function normalizeFinnaBook(record: FinnaRecord): Book {
     formats: (record.formats ?? []).map((format) => format.translated),
     coverUrl: coverUrls[0],
     coverUrls,
+    description: cleanDescription(record.summary?.[0]),
     ratings: finnaRating ? { finna: { ...finnaRating, url: pikiUrl } } : undefined,
     rating: finnaRating ? { ...finnaRating, url: pikiUrl } : undefined,
     topLoaned: hasTopLoanedIdentifier(isbns),
@@ -226,7 +229,16 @@ function normalizeFinnaBook(record: FinnaRecord): Book {
 }
 
 function matchesPrimaryLanguage(record: FinnaRecord, languageCodes: string[]): boolean {
-  return languageCodes.length === 0 || languageCodes.includes(record.languages?.[0] ?? '')
+  if (languageCodes.length === 0) return true
+
+  const primaryLanguage = record.languages?.[0] ?? ''
+  return languageCodes.some((language) => {
+    if (language === OTHER_LANGUAGE_FILTER_VALUE) {
+      return Boolean(primaryLanguage) && !FEATURED_LANGUAGE_CODES.includes(primaryLanguage)
+    }
+
+    return primaryLanguage === language
+  })
 }
 
 function normalizeFinnaRating(rating?: FinnaRecord['rating']): BookRating | undefined {

@@ -31,6 +31,7 @@ export type Book = {
   formats: string[]
   coverUrl?: string
   coverUrls: string[]
+  description?: string
   ratings?: Partial<Record<RatingSource, BookRating>>
   rating?: BookRating
   topLoaned?: boolean

@@ -1016,6 +1016,7 @@ a.rating:hover strong {
   width: 100%;
   min-height: 42px;
   padding: 0 14px;
+  white-space: nowrap;
 }
 
 .share-link {
@@ -1398,6 +1399,7 @@ a.rating:hover strong {
 
   .mobile-load-more {
     display: block;
+    grid-column: 1 / -1;
     height: 1px;
   }
 
@@ -1459,6 +1461,7 @@ a.rating:hover strong {
   .details-cover-column {
     grid-template-columns: minmax(118px, 42vw) minmax(0, 1fr);
     align-items: start;
+    gap: 8px 10px;
     width: 100%;
     max-width: none;
     margin-top: 48px;
@@ -1476,6 +1479,9 @@ a.rating:hover strong {
 
   .details-cover-column > .details-link {
     grid-column: 2;
+    min-height: 38px;
+    padding: 0 10px;
+    font-size: 0.95rem;
   }
 
   .mobile-detail-rating {

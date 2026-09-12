@@ -29,18 +29,20 @@ export const TAMPERE_HOLDING_LABELS = new Map(
 
 export const LANGUAGE_OPTIONS = [
   { value: '', label: 'Any language' },
-  { value: 'fin', label: 'Finnish' },
   { value: 'eng', label: 'English' },
   { value: 'rus', label: 'Russian' },
-  { value: 'swe', label: 'Swedish' },
-  { value: 'fra', label: 'French' },
-  { value: 'ger', label: 'German' },
+  { value: 'fin', label: 'Finnish' },
+  { value: 'other', label: 'Other' },
 ]
+
+export const FEATURED_LANGUAGE_CODES = ['eng', 'rus', 'fin']
+export const OTHER_LANGUAGE_FILTER_VALUE = 'other'
 
 export const LANGUAGE_LABELS: Record<string, string> = {
   fin: 'Finnish',
   eng: 'English',
   rus: 'Russian',
+  other: 'Other',
   swe: 'Swedish',
   fra: 'French',
   ger: 'German',
