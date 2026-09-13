@@ -62,7 +62,7 @@ const FILTER_STORAGE_KEY = 'metso-search-filters'
 const FILTER_SECTION_STORAGE_KEY = 'metso-filter-sections'
 const WISHLIST_STORAGE_KEY = 'metso-wishlist'
 const MOBILE_FINNA_PAGE_SIZE = 10
-const SHARE_PREVIEW_VERSION = 'cover6'
+const SHARE_PREVIEW_VERSION = 'share2'
 const initialFilterSections: Record<FilterSectionKey, boolean> = {
   language: true,
   genre: true,
@@ -714,7 +714,7 @@ function getBookIdFromLocation(): string | undefined {
 }
 
 function getBookShareUrl(finnaId: string): string {
-  return `${window.location.origin}/book/${encodeURIComponent(finnaId)}?v=${SHARE_PREVIEW_VERSION}`
+  return `${window.location.origin}/share/${encodeURIComponent(finnaId)}?v=${SHARE_PREVIEW_VERSION}`
 }
 
 function getGoodreadsUrl(isbn: string): string {

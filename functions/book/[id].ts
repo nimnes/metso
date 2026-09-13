@@ -97,12 +97,16 @@ const LETTER_MAP: Record<string, string> = {
   ä: 'я',
 }
 
-export async function onRequestGet({ request, params }: PagesContext): Promise<Response> {
+export async function onRequestGet(context: PagesContext): Promise<Response> {
+  return renderBookShareResponse(context)
+}
+
+export async function renderBookShareResponse({ request, params }: PagesContext): Promise<Response> {
   const id = normalizeId(Array.isArray(params.id) ? params.id[0] : params.id)
   if (!id) return new Response('Book id is required', { status: 400 })
 
   const requestUrl = new URL(request.url)
-  const shareUrl = `${requestUrl.origin}/book/${encodeURIComponent(id)}${requestUrl.search}`
+  const shareUrl = `${requestUrl.origin}${requestUrl.pathname}${requestUrl.search}`
   const appUrl = `${requestUrl.origin}/?book=${encodeURIComponent(id)}`
 
   try {
@@ -167,13 +171,14 @@ function renderSharePage({
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${escapeHtml(title)} - Metso</title>
     <meta name="description" content="${escapeHtml(description)}" />
-    <meta property="og:type" content="book" />
+    <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Metso" />
     <meta property="og:title" content="${escapeHtml(title)}" />
     <meta property="og:description" content="${escapeHtml(description)}" />
     <meta property="og:image" content="${escapeHtml(imageUrl)}" />
     <meta property="og:image:secure_url" content="${escapeHtml(imageUrl)}" />
     <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:alt" content="${escapeHtml(title)} cover" />
     <meta property="og:url" content="${escapeHtml(shareUrl)}" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${escapeHtml(title)}" />
