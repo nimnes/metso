@@ -306,7 +306,9 @@ function normalizeClassifications(classifications?: string[]): string[] {
 }
 
 function normalizeSeries(series: { name?: string; additional?: string }): string {
-  const value = [series.name, series.additional].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
+  const name = cleanText(series.name)
+  const additional = cleanText(series.additional)
+  const value = additional && /^\d+\.?$/.test(additional) ? `${name} #${additional.replace(/\.$/, '')}` : [name, additional].filter(Boolean).join(' ')
   return value.replace(/\s+\]/g, ']').replace(/\s+([.,;:])/g, '$1')
 }
 
@@ -315,12 +317,14 @@ function normalizeSeriesList(record: FinnaRecord): string[] {
     .map(normalizeSeries)
     .filter(Boolean)
     .filter(uniqueByNormalizedValue)
+  const rawSeries = uniqueNormalized((record.rawData?.series ?? []).map(cleanText).filter(Boolean))
+  const baseSeries = structuredSeries.length ? structuredSeries : rawSeries
 
-  if (record.languages?.[0] !== 'rus') return structuredSeries
+  if (record.languages?.[0] !== 'rus') return baseSeries
 
   const cyrillicSeries = uniqueNormalized((record.rawData?.series ?? []).map(cleanText).filter((value) => /[А-Яа-яЁё]/.test(value)))
   if (!cyrillicSeries.length) {
-    return structuredSeries.map((series) => getRussianTextFallback(series) ?? series)
+    return baseSeries.map((series) => getRussianTextFallback(series) ?? series)
   }
 
   return cyrillicSeries
