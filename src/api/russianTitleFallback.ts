@@ -105,13 +105,15 @@ const ASCII_ROMANIZATION: Record<string, string> = {
   я: 'ya',
 }
 
-export function getRussianTitleFallback(title?: string): string | undefined {
-  const cleaned = title?.replace(/\s+/g, ' ').trim()
+export function getRussianTextFallback(value?: string): string | undefined {
+  const cleaned = value?.replace(/\s+/g, ' ').trim()
   if (!cleaned || CYRILLIC_PATTERN.test(cleaned)) return undefined
 
   const transliterated = cleaned.replace(/[A-Za-zšžčŠŽČâûëÂÛËäÄ]+/g, transliterateWord).replace(/\s+([:;,.!?])/g, '$1')
   return CYRILLIC_PATTERN.test(transliterated) ? transliterated : undefined
 }
+
+export const getRussianTitleFallback = getRussianTextFallback
 
 export function getRussianSearchQueryVariants(query: string): string[] {
   const cleaned = query.replace(/\s+/g, ' ').trim()

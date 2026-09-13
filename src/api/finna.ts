@@ -3,7 +3,7 @@ import { GENRE_OPTIONS } from '../data/genreOptions'
 import { TOP_LOANED_BOOK_IDENTIFIER_SET } from '../data/topLoanedBooks'
 import type { Book, BookDetails, BookRating, BookSearchFilters, LibraryPresence } from '../types'
 import { removeDuplicateRussianTransliteration } from './descriptionCleanup'
-import { getRussianSearchQueryVariants, getRussianTitleFallback } from './russianTitleFallback'
+import { getRussianSearchQueryVariants, getRussianTextFallback, getRussianTitleFallback } from './russianTitleFallback'
 
 const FINNA_API_BASE = 'https://api.finna.fi/v1'
 const PIKI_BASE = 'https://piki.finna.fi'
@@ -124,7 +124,7 @@ async function searchFinnaWithPrimaryLanguage(filters: BookSearchFilters, page: 
   }
 
   const pageRecords = matches.slice(targetStart, targetEnd)
-  const total = scanned >= rawTotal ? targetStart + pageRecords.length : rawTotal
+  const total = scanned >= rawTotal ? matches.length : rawTotal
 
   return {
     total,
@@ -319,27 +319,33 @@ function normalizeSeriesList(record: FinnaRecord): string[] {
   if (record.languages?.[0] !== 'rus') return structuredSeries
 
   const cyrillicSeries = uniqueNormalized((record.rawData?.series ?? []).map(cleanText).filter((value) => /[А-Яа-яЁё]/.test(value)))
-  if (!cyrillicSeries.length) return structuredSeries
+  if (!cyrillicSeries.length) {
+    return structuredSeries.map((series) => getRussianTextFallback(series) ?? series)
+  }
 
   return cyrillicSeries
 }
 
 function normalizeAuthors(record: FinnaRecord): string[] {
+  const isRussian = record.languages?.[0] === 'rus'
   if (record.nonPresenterAuthors?.length) {
-    return unique(record.nonPresenterAuthors.map(getDisplayAuthorName)).slice(0, 4)
+    return unique(record.nonPresenterAuthors.map((author) => getDisplayAuthorName(author, isRussian))).slice(0, 4)
   }
 
   const buckets = record.authors ?? {}
   return unique(
     Object.values(buckets)
       .flatMap((bucket) => Object.keys(bucket))
-      .map(cleanAuthorName),
+      .map((author) => getDisplayAuthorName({ name: author }, isRussian)),
   ).slice(0, 4)
 }
 
-function getDisplayAuthorName(author: { name: string; name_alt?: string }): string {
+function getDisplayAuthorName(author: { name: string; name_alt?: string }, isRussian: boolean): string {
   const nativeName = cleanAuthorName(author.name_alt ?? '')
-  return /[А-Яа-яЁё]/.test(nativeName) ? nativeName : cleanAuthorName(author.name)
+  if (/[А-Яа-яЁё]/.test(nativeName)) return nativeName
+
+  const normalizedName = cleanAuthorName(author.name)
+  return isRussian ? (getRussianTextFallback(normalizedName) ?? normalizedName) : normalizedName
 }
 
 function cleanAuthorName(name: string): string {

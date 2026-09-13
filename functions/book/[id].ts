@@ -87,7 +87,7 @@ export async function onRequestGet({ request, params }: PagesContext): Promise<R
   if (!id) return new Response('Book id is required', { status: 400 })
 
   const requestUrl = new URL(request.url)
-  const shareUrl = `${requestUrl.origin}/book/${encodeURIComponent(id)}`
+  const shareUrl = `${requestUrl.origin}/book/${encodeURIComponent(id)}${requestUrl.search}`
   const appUrl = `${requestUrl.origin}/?book=${encodeURIComponent(id)}`
 
   try {
@@ -188,18 +188,22 @@ function getShareImageUrl(record: FinnaRecord, origin: string): string {
 }
 
 function getAuthor(record: FinnaRecord): string | undefined {
-  const namedAuthor = getDisplayAuthorName(record.nonPresenterAuthors?.[0])
+  const isRussian = record.languages?.[0] === 'rus'
+  const namedAuthor = getDisplayAuthorName(record.nonPresenterAuthors?.[0], isRussian)
   if (namedAuthor) return namedAuthor
 
   return Object.values(record.authors ?? {})
     .flatMap((bucket) => Object.keys(bucket))
-    .map(cleanText)
+    .map((author) => getDisplayAuthorName({ name: author }, isRussian))
     .find(Boolean)
 }
 
-function getDisplayAuthorName(author?: { name: string; name_alt?: string }): string | undefined {
+function getDisplayAuthorName(author: { name: string; name_alt?: string } | undefined, isRussian: boolean): string | undefined {
   const nativeName = cleanText(author?.name_alt)
-  return nativeName && /[А-Яа-яЁё]/.test(nativeName) ? nativeName : cleanText(author?.name)
+  if (nativeName && /[А-Яа-яЁё]/.test(nativeName)) return nativeName
+
+  const normalizedName = cleanText(author?.name)
+  return isRussian ? (getRussianTitleFallback(normalizedName) ?? normalizedName) : normalizedName
 }
 
 function getRussianTitleFallback(title?: string): string | undefined {
