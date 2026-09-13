@@ -43,6 +43,7 @@ const MULTI_LETTER_REPLACEMENTS: Array<[RegExp, string]> = [
   [/û/g, 'ю'],
   [/ë/g, 'ё'],
   [/ij\b/g, 'ий'],
+  [/yi\b/g, 'ый'],
   [/yj\b/g, 'ый'],
   [/ja/g, 'я'],
   [/ya/g, 'я'],
@@ -53,6 +54,20 @@ const MULTI_LETTER_REPLACEMENTS: Array<[RegExp, string]> = [
   [/je/g, 'е'],
   [/ye/g, 'е'],
 ]
+const COMMON_WORDS: Record<string, string> = {
+  den: 'день',
+  doma: 'дома',
+  eda: 'еда',
+  edim: 'едим',
+  etot: 'этот',
+  eta: 'эта',
+  eto: 'это',
+  kazhdyi: 'каждый',
+  kazhdyj: 'каждый',
+  vse: 'все',
+  vsjo: 'всё',
+  vsego: 'всего',
+}
 const LETTER_MAP: Record<string, string> = {
   a: 'а',
   b: 'б',
@@ -221,6 +236,8 @@ function getRussianTitleFallback(title?: string): string | undefined {
 function transliterateWord(word: string): string {
   const capitalized = /^[A-ZŠŽČÂÛËÄ]/.test(word)
   let value = word.toLocaleLowerCase()
+  const commonWord = COMMON_WORDS[value]
+  if (commonWord) return capitalized ? capitalizeReplacement(commonWord) : commonWord
 
   value = value.replace(/([bcdfghjklmnpqrstvwxzšžč])j([eё])/g, '$1ь$2')
   for (const [pattern, replacement] of MULTI_LETTER_REPLACEMENTS) {
