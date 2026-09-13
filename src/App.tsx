@@ -1214,6 +1214,7 @@ const BookCard = memo(function BookCard({
 
       <div className="book-copy">
         <div className="book-main">
+          {book.series[0] ? <p className="book-series">{book.series[0]}</p> : null}
           <h2>{book.title}</h2>
           <p className="authors">{book.authors.length ? book.authors.join(', ') : t.unknownAuthor}</p>
           <div className="book-facts">
@@ -1357,6 +1358,7 @@ function BookDetailsPanel({
         <div className="details-main">
           <div className="details-heading piki-details-heading">
             {formatLine ? <p className="details-format">{formatLine}</p> : null}
+            {displayBook.series[0] ? <p className="book-series">{displayBook.series[0]}</p> : null}
             <h2 id="book-details-title">{displayBook.title}</h2>
             {primaryAuthor ? (
               <button className="author-link" type="button" onClick={() => onSearchAuthor(primaryAuthor)}>
@@ -1699,7 +1701,7 @@ function storeWishlist(books: Book[]): void {
 function normalizeStoredWishlist(value: unknown): Book[] {
   if (!Array.isArray(value)) return []
 
-  const books = value.filter(isStoredBook)
+  const books = value.filter(isStoredBook).map((book) => ({ ...book, series: book.series ?? [] }))
   return Array.from(new Map(books.map((book) => [book.finnaId, book])).values())
 }
 

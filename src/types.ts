@@ -27,6 +27,7 @@ export type Book = {
   isbns: string[]
   languages: string[]
   publicationYear?: number
+  series: string[]
   subjects: string[]
   formats: string[]
   coverUrl?: string
@@ -49,7 +50,6 @@ export type BookDetails = Book & {
   physicalDescriptions: string[]
   publicationInfo: string[]
   publishers: string[]
-  series: string[]
   catalogueLibraries: LibraryPresence[]
 }
 

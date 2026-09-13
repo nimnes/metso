@@ -52,6 +52,7 @@ type FinnaRecord = {
     genre_facet?: string[]
     holdings_txtP_mv?: string[]
     isbn?: string[]
+    series?: string[]
     title_alt?: string[]
   }
 }
@@ -78,6 +79,7 @@ const REQUESTED_FIELDS = [
   'buildings',
   'recordPage',
   'rating',
+  'series',
   'summary',
   'rawData',
 ]
@@ -88,7 +90,6 @@ const DETAIL_FIELDS = [
   'physicalDescriptions',
   'publicationInfo',
   'publishers',
-  'series',
 ]
 
 export async function searchFinna(filters: BookSearchFilters, page = 1, pageSize = FINNA_PAGE_SIZE): Promise<{ total: number; books: Book[] }> {
@@ -215,6 +216,7 @@ function normalizeFinnaBook(record: FinnaRecord): Book {
     isbns,
     languages: record.languages ?? [],
     publicationYear: record.year ? Number.parseInt(record.year, 10) || undefined : undefined,
+    series: normalizeSeriesList(record),
     subjects: normalizeSubjects(record.subjects),
     formats: (record.formats ?? []).map((format) => format.translated),
     coverUrl: coverUrls[0],
@@ -272,10 +274,7 @@ function normalizeFinnaBookDetails(record: FinnaRecord): BookDetails {
     physicalDescriptions: record.physicalDescriptions ?? [],
     publicationInfo: record.publicationInfo ?? [],
     publishers: record.publishers ?? [],
-    series: (record.series ?? [])
-      .map(normalizeSeries)
-      .filter(Boolean)
-      .filter(uniqueByNormalizedValue),
+    series: normalizeSeriesList(record),
     catalogueLibraries: normalizeCatalogueLibraries(record),
   }
 }
@@ -289,6 +288,20 @@ function normalizeClassifications(classifications?: string[]): string[] {
 function normalizeSeries(series: { name?: string; additional?: string }): string {
   const value = [series.name, series.additional].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
   return value.replace(/\s+\]/g, ']').replace(/\s+([.,;:])/g, '$1')
+}
+
+function normalizeSeriesList(record: FinnaRecord): string[] {
+  const structuredSeries = (record.series ?? [])
+    .map(normalizeSeries)
+    .filter(Boolean)
+    .filter(uniqueByNormalizedValue)
+
+  if (record.languages?.[0] !== 'rus') return structuredSeries
+
+  const cyrillicSeries = uniqueNormalized((record.rawData?.series ?? []).map(cleanText).filter((value) => /[А-Яа-яЁё]/.test(value)))
+  if (!cyrillicSeries.length) return structuredSeries
+
+  return cyrillicSeries
 }
 
 function normalizeAuthors(record: FinnaRecord): string[] {
