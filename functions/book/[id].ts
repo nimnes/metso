@@ -92,7 +92,7 @@ export async function onRequestGet({ request, params }: PagesContext): Promise<R
 
   try {
     const record = await getFinnaRecord(id)
-    const imageUrl = getShareImageUrl(record, requestUrl.origin)
+    const imageUrl = getShareImageUrl(record, requestUrl.origin, requestUrl.searchParams.get('v'))
     return htmlResponse(renderSharePage({ appUrl, imageUrl, record, shareUrl }))
   } catch {
     return htmlResponse(
@@ -183,8 +183,11 @@ function getDisplayTitle(record: FinnaRecord): string {
   return cyrillicTitle || fallbackTitle || cleanText(record.title) || 'Metso'
 }
 
-function getShareImageUrl(record: FinnaRecord, origin: string): string {
-  return `${origin}/api/book-cover?id=${encodeURIComponent(record.id)}`
+function getShareImageUrl(record: FinnaRecord, origin: string, version?: string | null): string {
+  const params = new URLSearchParams({ id: record.id })
+  if (version) params.set('v', version)
+
+  return `${origin}/api/book-cover?${params.toString()}`
 }
 
 function getAuthor(record: FinnaRecord): string | undefined {

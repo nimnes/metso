@@ -61,7 +61,7 @@ const FILTER_STORAGE_KEY = 'metso-search-filters'
 const FILTER_SECTION_STORAGE_KEY = 'metso-filter-sections'
 const WISHLIST_STORAGE_KEY = 'metso-wishlist'
 const MOBILE_FINNA_PAGE_SIZE = 10
-const SHARE_PREVIEW_VERSION = 'cover2'
+const SHARE_PREVIEW_VERSION = 'cover3'
 const initialFilterSections: Record<FilterSectionKey, boolean> = {
   language: true,
   genre: true,
