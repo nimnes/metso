@@ -62,7 +62,7 @@ const FILTER_STORAGE_KEY = 'metso-search-filters'
 const FILTER_SECTION_STORAGE_KEY = 'metso-filter-sections'
 const WISHLIST_STORAGE_KEY = 'metso-wishlist'
 const MOBILE_FINNA_PAGE_SIZE = 10
-const SHARE_PREVIEW_VERSION = 'share2'
+const SHARE_PREVIEW_VERSION = 'share3'
 const initialFilterSections: Record<FilterSectionKey, boolean> = {
   language: true,
   genre: true,
@@ -713,8 +713,15 @@ function getBookIdFromLocation(): string | undefined {
   return value || undefined
 }
 
-function getBookShareUrl(finnaId: string): string {
-  return `${window.location.origin}/share/${encodeURIComponent(finnaId)}?v=${SHARE_PREVIEW_VERSION}`
+function getBookShareUrl(book: Book): string {
+  const params = new URLSearchParams()
+  params.set('v', SHARE_PREVIEW_VERSION)
+  params.set('t', book.title)
+  if (book.authors[0]) params.set('a', book.authors[0])
+  if (book.publicationYear) params.set('y', String(book.publicationYear))
+  if (book.coverUrl && /^https?:\/\//i.test(book.coverUrl)) params.set('img', book.coverUrl)
+
+  return `${window.location.origin}/share/${encodeURIComponent(book.finnaId)}?${params.toString()}`
 }
 
 function getGoodreadsUrl(isbn: string): string {
@@ -1364,10 +1371,8 @@ function BookDetailsPanel({
   }, [detailState.loading])
 
   async function shareBook() {
-    const shareUrl = getBookShareUrl(displayBook.finnaId)
-    const shareText = primaryAuthor
-      ? `${displayBook.title} - ${primaryAuthor}\n${shareUrl}`
-      : `${displayBook.title}\n${shareUrl}`
+    const shareUrl = getBookShareUrl(displayBook)
+    const shareText = primaryAuthor ? `${displayBook.title} - ${primaryAuthor}` : displayBook.title
     const shareData = {
       title: displayBook.title,
       text: shareText,

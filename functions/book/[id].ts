@@ -24,6 +24,13 @@ type FinnaRecordResponse = {
   records?: FinnaRecord[]
 }
 
+type PreviewOverrides = {
+  title?: string
+  author?: string
+  year?: string
+  imageUrl?: string
+}
+
 const FINNA_API_BASE = 'https://api.finna.fi/v1'
 const PIKI_BASE = 'https://piki.finna.fi'
 const CYRILLIC_PATTERN = /[А-Яа-яЁё]/
@@ -108,24 +115,57 @@ export async function renderBookShareResponse({ request, params }: PagesContext)
   const requestUrl = new URL(request.url)
   const shareUrl = `${requestUrl.origin}${requestUrl.pathname}${requestUrl.search}`
   const appUrl = `${requestUrl.origin}/?book=${encodeURIComponent(id)}`
+  const preview = getPreviewOverrides(requestUrl)
 
   try {
-    const record = await getFinnaRecord(id)
-    const imageUrl = getShareImageUrl(record, requestUrl.origin, requestUrl.searchParams.get('v'))
+    const record = preview.title ? getPreviewRecord(id, preview) : await getFinnaRecord(id)
+    const imageUrl = preview.imageUrl ?? getShareImageUrl(record, requestUrl.origin, requestUrl.searchParams.get('v'))
     return htmlResponse(renderSharePage({ appUrl, imageUrl, record, shareUrl }))
   } catch {
+    const fallbackRecord = getPreviewRecord(id, preview)
     return htmlResponse(
       renderSharePage({
         appUrl,
-        imageUrl: `${requestUrl.origin}/metso-icon-512.png`,
-        record: {
-          id,
-          title: 'Metso',
-          summary: ['Search books in Tampere PIKI libraries.'],
-        },
+        imageUrl: preview.imageUrl ?? `${requestUrl.origin}/metso-icon-512.png`,
+        record: fallbackRecord,
         shareUrl,
       }),
     )
+  }
+}
+
+function getPreviewOverrides(url: URL): PreviewOverrides {
+  const imageUrl = cleanShareImageUrl(url.searchParams.get('img'))
+
+  return {
+    title: cleanText(url.searchParams.get('t') ?? undefined),
+    author: cleanText(url.searchParams.get('a') ?? undefined),
+    year: cleanText(url.searchParams.get('y') ?? undefined),
+    imageUrl,
+  }
+}
+
+function getPreviewRecord(id: string, preview: PreviewOverrides): FinnaRecord {
+  const summary = [preview.author, preview.year, 'available in Tampere PIKI libraries'].filter(Boolean).join('. ')
+
+  return {
+    id,
+    title: preview.title || 'Metso',
+    nonPresenterAuthors: preview.author ? [{ name: preview.author }] : undefined,
+    year: preview.year,
+    summary: [summary || 'Search books in Tampere PIKI libraries.'],
+    recordPage: `/Record/${id}`,
+  }
+}
+
+function cleanShareImageUrl(value: string | null): string | undefined {
+  if (!value) return undefined
+
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : undefined
+  } catch {
+    return undefined
   }
 }
 
