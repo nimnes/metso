@@ -84,6 +84,7 @@ function App() {
   const [showWishlist, setShowWishlist] = useState(false)
   const [showMobileScrollTop, setShowMobileScrollTop] = useState(false)
   const resultsTopRef = useRef<HTMLDivElement | null>(null)
+  const bookGridRef = useRef<HTMLElement | null>(null)
   const mobileLoadMoreRef = useRef<HTMLDivElement | null>(null)
   const booksRef = useRef<Book[]>([])
   const selectedBookRef = useRef<Book | undefined>(undefined)
@@ -320,13 +321,24 @@ function App() {
     }
 
     function updateScrollTopButton() {
-      setShowMobileScrollTop(window.scrollY > 520)
+      const secondBook = bookGridRef.current?.querySelectorAll<HTMLElement>('.book-card')[1]
+      if (!secondBook) {
+        setShowMobileScrollTop(false)
+        return
+      }
+
+      const secondBookTop = secondBook.getBoundingClientRect().top + window.scrollY
+      setShowMobileScrollTop(window.scrollY >= secondBookTop - 16)
     }
 
     updateScrollTopButton()
     window.addEventListener('scroll', updateScrollTopButton, { passive: true })
-    return () => window.removeEventListener('scroll', updateScrollTopButton)
-  }, [isMobileResults])
+    window.addEventListener('resize', updateScrollTopButton)
+    return () => {
+      window.removeEventListener('scroll', updateScrollTopButton)
+      window.removeEventListener('resize', updateScrollTopButton)
+    }
+  }, [isMobileResults, visibleBookCount])
 
   useEffect(() => {
     if (showWishlist || state.loading || !visibleBooks.length) return
@@ -366,8 +378,8 @@ function App() {
     resultsTopRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
   }, [])
 
-  const scrollToResultsTop = useCallback(() => {
-    resultsTopRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  const scrollToPageTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
 
   useEffect(() => {
@@ -602,7 +614,7 @@ function App() {
             </div>
           ) : null}
 
-          <section className="book-grid">
+          <section className="book-grid" ref={bookGridRef}>
             {visibleBooks.map((book, index) => (
               <Fragment key={book.id}>
                 {index === mobileLoadMoreIndex ? <div className="mobile-load-more" ref={mobileLoadMoreRef} aria-hidden="true" /> : null}
@@ -660,7 +672,7 @@ function App() {
       {scannerOpen ? <BarcodeScannerDialog onClose={() => setScannerOpen(false)} onScan={searchScannedBarcode} uiLanguage={uiLanguage} /> : null}
 
       {showMobileScrollTop && !selectedBook ? (
-        <button className="mobile-scroll-top" type="button" aria-label={t.scrollToTop} title={t.scrollToTop} onClick={scrollToResultsTop}>
+        <button className="mobile-scroll-top" type="button" aria-label={t.scrollToTop} title={t.scrollToTop} onClick={scrollToPageTop}>
           <ChevronUp size={22} aria-hidden="true" />
         </button>
       ) : null}
