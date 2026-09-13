@@ -104,11 +104,12 @@ export async function onRequestGet({ request, params }: PagesContext): Promise<R
   const requestUrl = new URL(request.url)
   const shareUrl = `${requestUrl.origin}/book/${encodeURIComponent(id)}${requestUrl.search}`
   const appUrl = `${requestUrl.origin}/?book=${encodeURIComponent(id)}`
+  const shouldRedirectToApp = !isPreviewCrawler(request.headers.get('user-agent'))
 
   try {
     const record = await getFinnaRecord(id)
     const imageUrl = getShareImageUrl(record, requestUrl.origin, requestUrl.searchParams.get('v'))
-    return htmlResponse(renderSharePage({ appUrl, imageUrl, record, shareUrl }))
+    return htmlResponse(renderSharePage({ appUrl, imageUrl, record, shareUrl, shouldRedirectToApp }))
   } catch {
     return htmlResponse(
       renderSharePage({
@@ -120,6 +121,7 @@ export async function onRequestGet({ request, params }: PagesContext): Promise<R
           summary: ['Search books in Tampere PIKI libraries.'],
         },
         shareUrl,
+        shouldRedirectToApp,
       }),
     )
   }
@@ -143,12 +145,25 @@ async function getFinnaRecord(id: string): Promise<FinnaRecord> {
   return record
 }
 
-function renderSharePage({ appUrl, imageUrl, record, shareUrl }: { appUrl: string; imageUrl: string; record: FinnaRecord; shareUrl: string }): string {
+function renderSharePage({
+  appUrl,
+  imageUrl,
+  record,
+  shareUrl,
+  shouldRedirectToApp,
+}: {
+  appUrl: string
+  imageUrl: string
+  record: FinnaRecord
+  shareUrl: string
+  shouldRedirectToApp: boolean
+}): string {
   const title = getDisplayTitle(record)
   const author = getAuthor(record)
   const year = cleanText(record.year)
   const description = getDescription(record, author, year)
   const pikiUrl = record.recordPage ? `${PIKI_BASE}${record.recordPage}` : `${PIKI_BASE}/Record/${record.id}`
+  const redirectScript = shouldRedirectToApp ? `<script>window.location.replace(${JSON.stringify(appUrl)});</script>` : ''
 
   return `<!doctype html>
 <html lang="en">
@@ -163,15 +178,14 @@ function renderSharePage({ appUrl, imageUrl, record, shareUrl }: { appUrl: strin
     <meta property="og:description" content="${escapeHtml(description)}" />
     <meta property="og:image" content="${escapeHtml(imageUrl)}" />
     <meta property="og:image:secure_url" content="${escapeHtml(imageUrl)}" />
-    <meta property="og:image:width" content="512" />
-    <meta property="og:image:height" content="768" />
+    <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:url" content="${escapeHtml(shareUrl)}" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="${escapeHtml(title)}" />
     <meta name="twitter:description" content="${escapeHtml(description)}" />
     <meta name="twitter:image" content="${escapeHtml(imageUrl)}" />
     <link rel="canonical" href="${escapeHtml(shareUrl)}" />
-    <script>window.location.replace(${JSON.stringify(appUrl)});</script>
+    ${redirectScript}
   </head>
   <body>
     <main>
@@ -182,6 +196,10 @@ function renderSharePage({ appUrl, imageUrl, record, shareUrl }: { appUrl: strin
     </main>
   </body>
 </html>`
+}
+
+function isPreviewCrawler(userAgent: string | null): boolean {
+  return /TelegramBot|facebookexternalhit|Facebot|Twitterbot|WhatsApp|Slackbot|Discordbot|LinkedInBot|SkypeUriPreview|bot|crawler|spider/i.test(userAgent ?? '')
 }
 
 function getDescription(record: FinnaRecord, author?: string, year?: string): string {
