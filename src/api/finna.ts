@@ -3,6 +3,7 @@ import { GENRE_OPTIONS } from '../data/genreOptions'
 import { TOP_LOANED_BOOK_IDENTIFIER_SET } from '../data/topLoanedBooks'
 import type { Book, BookDetails, BookRating, BookSearchFilters, LibraryPresence } from '../types'
 import { removeDuplicateRussianTransliteration } from './descriptionCleanup'
+import { getRussianSearchQueryVariants, getRussianTitleFallback } from './russianTitleFallback'
 
 const FINNA_API_BASE = 'https://api.finna.fi/v1'
 const PIKI_BASE = 'https://piki.finna.fi'
@@ -132,8 +133,21 @@ async function searchFinnaWithPrimaryLanguage(filters: BookSearchFilters, page: 
 }
 
 async function fetchFinnaSearch(filters: BookSearchFilters, page: number, limit: number): Promise<FinnaSearchResponse> {
+  const queryVariants = getRussianSearchQueryVariants(filters.query.trim())
+  const responses = await Promise.all(queryVariants.map((query) => fetchFinnaSearchVariant(filters, page, limit, query)))
+  if (responses.length === 1) return responses[0]
+
+  const records = uniqueRecordsById(responses.flatMap((response) => response.records ?? []))
+  return {
+    status: 'OK',
+    resultCount: responses.reduce((total, response) => total + (response.resultCount ?? 0), 0),
+    records,
+  }
+}
+
+async function fetchFinnaSearchVariant(filters: BookSearchFilters, page: number, limit: number, query: string): Promise<FinnaSearchResponse> {
   const params = new URLSearchParams()
-  params.set('lookfor', filters.query.trim() || '*')
+  params.set('lookfor', query || '*')
   params.set('type', 'AllFields')
   params.set('sort', sortToFinna(filters.sort))
   params.set('limit', String(limit))
@@ -178,6 +192,10 @@ async function fetchFinnaSearch(filters: BookSearchFilters, page: number, limit:
   }
 
   return data
+}
+
+function uniqueRecordsById(records: FinnaRecord[]): FinnaRecord[] {
+  return Array.from(new Map(records.map((record) => [record.id, record])).values())
 }
 
 export async function getFinnaBookDetails(finnaId: string): Promise<BookDetails> {
@@ -254,7 +272,9 @@ function normalizeFinnaRating(rating?: FinnaRecord['rating']): BookRating | unde
 }
 
 function getDisplayTitle(record: FinnaRecord): string {
-  return record.rawData?.title_alt?.map(cleanText).find((title) => /[А-Яа-яЁё]/.test(title)) || record.title || 'Untitled'
+  const cyrillicTitle = record.rawData?.title_alt?.map(cleanText).find((title) => /[А-Яа-яЁё]/.test(title))
+  const fallbackTitle = record.languages?.[0] === 'rus' ? getRussianTitleFallback(record.title) : undefined
+  return cyrillicTitle || fallbackTitle || record.title || 'Untitled'
 }
 
 function hasTopLoanedIdentifier(identifiers: string[]): boolean {

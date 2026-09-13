@@ -11,6 +11,7 @@ type FinnaRecord = {
   authors?: Record<string, Record<string, unknown>>
   nonPresenterAuthors?: Array<{ name: string; name_alt?: string }>
   year?: string
+  languages?: string[]
   summary?: string[]
   recordPage?: string
   rawData?: {
@@ -25,6 +26,61 @@ type FinnaRecordResponse = {
 
 const FINNA_API_BASE = 'https://api.finna.fi/v1'
 const PIKI_BASE = 'https://piki.finna.fi'
+const CYRILLIC_PATTERN = /[А-Яа-яЁё]/
+const MULTI_LETTER_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/shch/g, 'щ'],
+  [/štš/g, 'щ'],
+  [/tš/g, 'ч'],
+  [/tsch/g, 'ч'],
+  [/ts/g, 'ц'],
+  [/zh/g, 'ж'],
+  [/ž/g, 'ж'],
+  [/sh/g, 'ш'],
+  [/š/g, 'ш'],
+  [/č/g, 'ч'],
+  [/kh/g, 'х'],
+  [/â/g, 'я'],
+  [/û/g, 'ю'],
+  [/ë/g, 'ё'],
+  [/ij\b/g, 'ий'],
+  [/yj\b/g, 'ый'],
+  [/ja/g, 'я'],
+  [/ya/g, 'я'],
+  [/ju/g, 'ю'],
+  [/yu/g, 'ю'],
+  [/jo/g, 'ё'],
+  [/yo/g, 'ё'],
+  [/je/g, 'е'],
+  [/ye/g, 'е'],
+]
+const LETTER_MAP: Record<string, string> = {
+  a: 'а',
+  b: 'б',
+  c: 'к',
+  d: 'д',
+  e: 'е',
+  f: 'ф',
+  g: 'г',
+  h: 'х',
+  i: 'и',
+  j: 'й',
+  k: 'к',
+  l: 'л',
+  m: 'м',
+  n: 'н',
+  o: 'о',
+  p: 'п',
+  r: 'р',
+  s: 'с',
+  t: 'т',
+  u: 'у',
+  v: 'в',
+  w: 'в',
+  x: 'кс',
+  y: 'ы',
+  z: 'з',
+  ä: 'я',
+}
 
 export async function onRequestGet({ request, params }: PagesContext): Promise<Response> {
   const id = normalizeId(Array.isArray(params.id) ? params.id[0] : params.id)
@@ -57,7 +113,7 @@ export async function onRequestGet({ request, params }: PagesContext): Promise<R
 async function getFinnaRecord(id: string): Promise<FinnaRecord> {
   const params = new URLSearchParams()
   params.set('id', id)
-  const fields = ['id', 'title', 'authors', 'nonPresenterAuthors', 'year', 'summary', 'recordPage', 'rawData']
+  const fields = ['id', 'title', 'authors', 'nonPresenterAuthors', 'year', 'languages', 'summary', 'recordPage', 'rawData']
   fields.forEach((field) => params.append('field[]', field))
 
   const response = await fetch(`${FINNA_API_BASE}/record?${params.toString()}`, {
@@ -122,7 +178,9 @@ function getDescription(record: FinnaRecord, author?: string, year?: string): st
 }
 
 function getDisplayTitle(record: FinnaRecord): string {
-  return record.rawData?.title_alt?.map(cleanText).find((title) => /[А-Яа-яЁё]/.test(title)) || cleanText(record.title) || 'Metso'
+  const cyrillicTitle = record.rawData?.title_alt?.map(cleanText).find((title) => /[А-Яа-яЁё]/.test(title))
+  const fallbackTitle = record.languages?.[0] === 'rus' ? getRussianTitleFallback(record.title) : undefined
+  return cyrillicTitle || fallbackTitle || cleanText(record.title) || 'Metso'
 }
 
 function getShareImageUrl(record: FinnaRecord, origin: string): string {
@@ -142,6 +200,36 @@ function getAuthor(record: FinnaRecord): string | undefined {
 function getDisplayAuthorName(author?: { name: string; name_alt?: string }): string | undefined {
   const nativeName = cleanText(author?.name_alt)
   return nativeName && /[А-Яа-яЁё]/.test(nativeName) ? nativeName : cleanText(author?.name)
+}
+
+function getRussianTitleFallback(title?: string): string | undefined {
+  const cleaned = title?.replace(/\s+/g, ' ').trim()
+  if (!cleaned || CYRILLIC_PATTERN.test(cleaned)) return undefined
+
+  const transliterated = cleaned.replace(/[A-Za-zšžčŠŽČâûëÂÛËäÄ]+/g, transliterateWord).replace(/\s+([:;,.!?])/g, '$1')
+  return CYRILLIC_PATTERN.test(transliterated) ? transliterated : undefined
+}
+
+function transliterateWord(word: string): string {
+  const capitalized = /^[A-ZŠŽČÂÛËÄ]/.test(word)
+  let value = word.toLocaleLowerCase()
+
+  value = value.replace(/([bcdfghjklmnpqrstvwxzšžč])j([eё])/g, '$1ь$2')
+  for (const [pattern, replacement] of MULTI_LETTER_REPLACEMENTS) {
+    value = value.replace(pattern, replacement)
+  }
+
+  let result = ''
+  for (let index = 0; index < value.length; index += 1) {
+    const letter = value[index]
+    if (letter === 'e' && index === 0) {
+      result += 'э'
+    } else {
+      result += LETTER_MAP[letter] ?? letter
+    }
+  }
+
+  return capitalized ? result.charAt(0).toLocaleUpperCase() + result.slice(1) : result
 }
 
 function normalizeId(value?: string): string | undefined {
