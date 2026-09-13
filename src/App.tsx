@@ -242,9 +242,9 @@ function App() {
       try {
         const details = await getFinnaBookDetails(activeBook.finnaId)
         const description =
+          (await getOptionalPikiDescription(details.isbns[0] ?? activeBook.isbns[0])) ||
           details.description ||
           activeBook.description ||
-          (await getOptionalPikiDescription(details.isbns[0])) ||
           (await getOptionalOpenLibraryDescription(details.isbns[0])) ||
           (await getOptionalHardcoverDescription(details))
         if (!cancelled) {
@@ -321,7 +321,7 @@ function App() {
       for (const book of booksToPreload) {
         try {
           const details = await getFinnaBookDetails(book.finnaId)
-          const description = details.description
+          const description = (await getOptionalPikiDescription(details.isbns[0] ?? book.isbns[0])) || details.description
           if (cancelled || !description) continue
 
           setState((current) => updateBookDescriptionInSearchState(current, book.finnaId, description))
