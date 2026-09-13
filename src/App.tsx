@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   ChevronsLeft,
   ChevronsRight,
   ExternalLink,
@@ -81,6 +82,7 @@ function App() {
   const [scannerOpen, setScannerOpen] = useState(false)
   const [wishlistBooks, setWishlistBooks] = useState<Book[]>(getStoredWishlist)
   const [showWishlist, setShowWishlist] = useState(false)
+  const [showMobileScrollTop, setShowMobileScrollTop] = useState(false)
   const resultsTopRef = useRef<HTMLDivElement | null>(null)
   const mobileLoadMoreRef = useRef<HTMLDivElement | null>(null)
   const booksRef = useRef<Book[]>([])
@@ -312,6 +314,21 @@ function App() {
   const mobileLoadMoreIndex = canLoadMoreOnMobile && visibleBooks.length > pageSize ? Math.max(visibleBooks.length - pageSize, 0) : -1
 
   useEffect(() => {
+    if (!isMobileResults) {
+      setShowMobileScrollTop(false)
+      return
+    }
+
+    function updateScrollTopButton() {
+      setShowMobileScrollTop(window.scrollY > 520)
+    }
+
+    updateScrollTopButton()
+    window.addEventListener('scroll', updateScrollTopButton, { passive: true })
+    return () => window.removeEventListener('scroll', updateScrollTopButton)
+  }, [isMobileResults])
+
+  useEffect(() => {
     if (showWishlist || state.loading || !visibleBooks.length) return
 
     let cancelled = false
@@ -346,6 +363,10 @@ function App() {
 
   const changePage = useCallback((page: number) => {
     setCurrentPage(page)
+    resultsTopRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }, [])
+
+  const scrollToResultsTop = useCallback(() => {
     resultsTopRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
   }, [])
 
@@ -637,6 +658,12 @@ function App() {
       ) : null}
 
       {scannerOpen ? <BarcodeScannerDialog onClose={() => setScannerOpen(false)} onScan={searchScannedBarcode} uiLanguage={uiLanguage} /> : null}
+
+      {showMobileScrollTop && !selectedBook ? (
+        <button className="mobile-scroll-top" type="button" aria-label={t.scrollToTop} title={t.scrollToTop} onClick={scrollToResultsTop}>
+          <ChevronUp size={22} aria-hidden="true" />
+        </button>
+      ) : null}
     </main>
   )
 }
