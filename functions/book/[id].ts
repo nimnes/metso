@@ -104,12 +104,11 @@ export async function onRequestGet({ request, params }: PagesContext): Promise<R
   const requestUrl = new URL(request.url)
   const shareUrl = `${requestUrl.origin}/book/${encodeURIComponent(id)}${requestUrl.search}`
   const appUrl = `${requestUrl.origin}/?book=${encodeURIComponent(id)}`
-  const shouldRedirectToApp = !isPreviewCrawler(request.headers.get('user-agent'))
 
   try {
     const record = await getFinnaRecord(id)
     const imageUrl = getShareImageUrl(record, requestUrl.origin, requestUrl.searchParams.get('v'))
-    return htmlResponse(renderSharePage({ appUrl, imageUrl, record, shareUrl, shouldRedirectToApp }))
+    return htmlResponse(renderSharePage({ appUrl, imageUrl, record, shareUrl }))
   } catch {
     return htmlResponse(
       renderSharePage({
@@ -121,7 +120,6 @@ export async function onRequestGet({ request, params }: PagesContext): Promise<R
           summary: ['Search books in Tampere PIKI libraries.'],
         },
         shareUrl,
-        shouldRedirectToApp,
       }),
     )
   }
@@ -150,20 +148,17 @@ function renderSharePage({
   imageUrl,
   record,
   shareUrl,
-  shouldRedirectToApp,
 }: {
   appUrl: string
   imageUrl: string
   record: FinnaRecord
   shareUrl: string
-  shouldRedirectToApp: boolean
 }): string {
   const title = getDisplayTitle(record)
   const author = getAuthor(record)
   const year = cleanText(record.year)
   const description = getDescription(record, author, year)
   const pikiUrl = record.recordPage ? `${PIKI_BASE}${record.recordPage}` : `${PIKI_BASE}/Record/${record.id}`
-  const redirectScript = shouldRedirectToApp ? `<script>window.location.replace(${JSON.stringify(appUrl)});</script>` : ''
 
   return `<!doctype html>
 <html lang="en">
@@ -185,21 +180,67 @@ function renderSharePage({
     <meta name="twitter:description" content="${escapeHtml(description)}" />
     <meta name="twitter:image" content="${escapeHtml(imageUrl)}" />
     <link rel="canonical" href="${escapeHtml(shareUrl)}" />
-    ${redirectScript}
+    <style>
+      body {
+        margin: 0;
+        background: #faf7f1;
+        color: #11181c;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      main {
+        box-sizing: border-box;
+        display: grid;
+        gap: 20px;
+        max-width: 760px;
+        min-height: 100vh;
+        padding: 32px;
+      }
+      img {
+        width: min(260px, 60vw);
+        border-radius: 10px;
+        box-shadow: 0 18px 40px rgba(22, 32, 29, 0.15);
+      }
+      h1 {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(2rem, 7vw, 4rem);
+        line-height: 1;
+      }
+      p {
+        margin: 0;
+        color: #52605f;
+        font-size: 1.15rem;
+        line-height: 1.5;
+      }
+      nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      a {
+        color: #116f55;
+        font-weight: 700;
+      }
+      nav a {
+        border: 1px solid #cbd9d5;
+        border-radius: 8px;
+        padding: 10px 14px;
+        text-decoration: none;
+      }
+    </style>
   </head>
   <body>
     <main>
+      <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(title)} cover" />
       <h1>${escapeHtml(title)}</h1>
       <p>${escapeHtml(description)}</p>
-      <p><a href="${escapeHtml(appUrl)}">Open in Metso</a></p>
-      <p><a href="${escapeHtml(pikiUrl)}">Open in PIKI</a></p>
+      <nav>
+        <a href="${escapeHtml(appUrl)}">Open in Metso</a>
+        <a href="${escapeHtml(pikiUrl)}">Open in PIKI</a>
+      </nav>
     </main>
   </body>
 </html>`
-}
-
-function isPreviewCrawler(userAgent: string | null): boolean {
-  return /TelegramBot|facebookexternalhit|Facebot|Twitterbot|WhatsApp|Slackbot|Discordbot|LinkedInBot|SkypeUriPreview|bot|crawler|spider/i.test(userAgent ?? '')
 }
 
 function getDescription(record: FinnaRecord, author?: string, year?: string): string {
@@ -297,7 +338,7 @@ function escapeHtml(value: string): string {
 function htmlResponse(html: string): Response {
   return new Response(html, {
     headers: {
-      'Cache-Control': 'public, max-age=3600',
+      'Cache-Control': 'public, max-age=0, must-revalidate',
       'Content-Type': 'text/html; charset=utf-8',
     },
   })
