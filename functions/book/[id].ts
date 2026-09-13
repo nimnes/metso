@@ -184,10 +184,11 @@ function getDisplayTitle(record: FinnaRecord): string {
 }
 
 function getShareImageUrl(record: FinnaRecord, origin: string, version?: string | null): string {
-  const params = new URLSearchParams({ id: record.id })
+  const params = new URLSearchParams()
   if (version) params.set('v', version)
 
-  return `${origin}/api/book-cover?${params.toString()}`
+  const query = params.toString()
+  return `${origin}/preview-image/${encodeURIComponent(record.id)}.jpg${query ? `?${query}` : ''}`
 }
 
 function getAuthor(record: FinnaRecord): string | undefined {
