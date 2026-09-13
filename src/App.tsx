@@ -1322,29 +1322,31 @@ function BookDetailsPanel({
         <button className="icon-button close-button" type="button" onClick={onClose} aria-label={t.closeDetails}>
           <X className="close-button-icon" size={20} aria-hidden="true" />
           <ChevronLeft className="back-button-icon" size={20} aria-hidden="true" />
-          <span className="back-button-label">{t.previousPage}</span>
+          <span className="back-button-label">{t.back}</span>
         </button>
 
         <div className="details-cover-column">
           <BookCover book={displayBook} markers={<BookMarkers book={displayBook} uiLanguage={uiLanguage} />} variant="detail" uiLanguage={uiLanguage} />
-          <a className="piki-link details-link" href={displayBook.pikiUrl} target="_blank" rel="noreferrer">
-            {t.openInPiki}
-            <ExternalLink size={16} aria-hidden="true" />
-          </a>
-          {displayBook.isbns[0] ? (
-            <a className="piki-link details-link goodreads-link" href={getGoodreadsUrl(displayBook.isbns[0])} target="_blank" rel="noreferrer">
-              {t.openInGoodreads}
+          <div className="details-actions">
+            <a className="piki-link details-link" href={displayBook.pikiUrl} target="_blank" rel="noreferrer">
+              {t.openInPiki}
               <ExternalLink size={16} aria-hidden="true" />
             </a>
-          ) : null}
-          <button className="piki-link details-link wishlist-detail-link" type="button" onClick={() => onToggleWishlist(displayBook)}>
-            {isWishlisted ? t.removeFromWishlist : t.addToWishlist}
-            <Bookmark size={16} aria-hidden="true" fill={isWishlisted ? 'currentColor' : 'none'} />
-          </button>
-          <button className="piki-link details-link share-link" type="button" onClick={shareBook}>
-            {shareCopied ? t.shareCopied : t.shareBook}
-            <Share2 size={16} aria-hidden="true" />
-          </button>
+            {displayBook.isbns[0] ? (
+              <a className="piki-link details-link goodreads-link" href={getGoodreadsUrl(displayBook.isbns[0])} target="_blank" rel="noreferrer">
+                {t.openInGoodreads}
+                <ExternalLink size={16} aria-hidden="true" />
+              </a>
+            ) : null}
+            <button className="piki-link details-link wishlist-detail-link" type="button" onClick={() => onToggleWishlist(displayBook)}>
+              {isWishlisted ? t.removeFromWishlist : t.addToWishlist}
+              <Bookmark size={16} aria-hidden="true" fill={isWishlisted ? 'currentColor' : 'none'} />
+            </button>
+            <button className="piki-link details-link share-link" type="button" onClick={shareBook}>
+              {shareCopied ? t.shareCopied : t.shareBook}
+              <Share2 size={16} aria-hidden="true" />
+            </button>
+          </div>
           {hasRatings(displayBook.ratings) ? (
             <div className="mobile-detail-rating">
               <Ratings book={displayBook} ratings={displayBook.ratings} uiLanguage={uiLanguage} />

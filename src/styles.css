@@ -1012,6 +1012,11 @@ a.rating:hover strong {
   display: none;
 }
 
+.details-actions {
+  display: grid;
+  gap: 12px;
+}
+
 .details-link {
   width: 100%;
   min-height: 42px;
@@ -1461,6 +1466,7 @@ a.rating:hover strong {
   .details-cover-column {
     grid-template-columns: minmax(118px, 42vw) minmax(0, 1fr);
     align-items: start;
+    align-content: start;
     gap: 8px 10px;
     width: 100%;
     max-width: none;
@@ -1474,11 +1480,17 @@ a.rating:hover strong {
     min-height: 0;
     aspect-ratio: 0.68;
     grid-column: 1;
-    grid-row: 1 / span 4;
+    grid-row: 1;
   }
 
-  .details-cover-column > .details-link {
+  .details-actions {
     grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    gap: 8px;
+  }
+
+  .details-actions > .details-link {
     min-height: 38px;
     padding: 0 10px;
     font-size: 0.95rem;
