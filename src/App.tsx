@@ -450,6 +450,16 @@ function App() {
     setSelectedBook(undefined)
   }, [])
 
+  const searchSeries = useCallback((series: string) => {
+    const query = getSeriesSearchQuery(series)
+    setDraftQuery(query)
+    setHasSearched(true)
+    setCurrentPage(1)
+    setFilters((current) => ({ ...current, query }))
+    openListFromCurrentBook()
+    setSelectedBook(undefined)
+  }, [])
+
   const searchLibrary = useCallback((library: LibraryPresence) => {
     const matchingBranch = TAMPERE_BRANCHES.find((branch) => branch.code === `holdings:${library.code}` || branch.code === library.code)
     if (!matchingBranch) return
@@ -579,6 +589,7 @@ function App() {
                   book={book}
                   isWishlisted={wishlistIds.has(book.finnaId)}
                   onSelect={selectBook}
+                  onSearchSeries={searchSeries}
                   onToggleWishlist={toggleWishlist}
                   uiLanguage={uiLanguage}
                 />
@@ -618,6 +629,7 @@ function App() {
           onClose={closeSelectedBook}
           onSearchAuthor={searchAuthor}
           onSearchLibrary={searchLibrary}
+          onSearchSeries={searchSeries}
           isWishlisted={wishlistIds.has(selectedBook.finnaId)}
           onToggleWishlist={toggleWishlist}
           uiLanguage={uiLanguage}
@@ -668,6 +680,13 @@ function getBookShareUrl(finnaId: string): string {
 
 function getGoodreadsUrl(isbn: string): string {
   return `https://www.goodreads.com/book/isbn/${encodeURIComponent(isbn)}`
+}
+
+function getSeriesSearchQuery(series: string): string {
+  return series
+    .replace(/\s*\(?(?:Series\s*)?#\d+\.?\)?\s*$/i, '')
+    .replace(/\s+\d+\.?\s*$/, '')
+    .trim() || series.trim()
 }
 
 function pushBookToHistory(finnaId: string): void {
@@ -1155,12 +1174,14 @@ const BookCard = memo(function BookCard({
   book,
   isWishlisted,
   onSelect,
+  onSearchSeries,
   onToggleWishlist,
   uiLanguage,
 }: {
   book: Book
   isWishlisted: boolean
   onSelect: (book: Book) => void
+  onSearchSeries: (series: string) => void
   onToggleWishlist: (book: Book) => void
   uiLanguage: UiLanguage
 }) {
@@ -1215,7 +1236,19 @@ const BookCard = memo(function BookCard({
 
       <div className="book-copy">
         <div className="book-main">
-          {book.series[0] ? <p className="book-series">{book.series[0]}</p> : null}
+          {book.series[0] ? (
+            <button
+              className="book-series series-link"
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                onSearchSeries(book.series[0])
+              }}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              {book.series[0]}
+            </button>
+          ) : null}
           <h2>{book.title}</h2>
           <p className="authors">{book.authors.length ? book.authors.join(', ') : t.unknownAuthor}</p>
           <div className="book-facts">
@@ -1256,6 +1289,7 @@ function BookDetailsPanel({
   onClose,
   onSearchAuthor,
   onSearchLibrary,
+  onSearchSeries,
   onToggleWishlist,
   uiLanguage,
 }: {
@@ -1265,6 +1299,7 @@ function BookDetailsPanel({
   onClose: () => void
   onSearchAuthor: (author: string) => void
   onSearchLibrary: (library: LibraryPresence) => void
+  onSearchSeries: (series: string) => void
   onToggleWishlist: (book: Book) => void
   uiLanguage: UiLanguage
 }) {
@@ -1359,7 +1394,11 @@ function BookDetailsPanel({
         <div className="details-main">
           <div className="details-heading piki-details-heading">
             {formatLine ? <p className="details-format">{formatLine}</p> : null}
-            {displayBook.series[0] ? <p className="book-series">{displayBook.series[0]}</p> : null}
+            {displayBook.series[0] ? (
+              <button className="book-series series-link" type="button" onClick={() => onSearchSeries(displayBook.series[0])}>
+                {displayBook.series[0]}
+              </button>
+            ) : null}
             <h2 id="book-details-title">{displayBook.title}</h2>
             {primaryAuthor ? (
               <button className="author-link" type="button" onClick={() => onSearchAuthor(primaryAuthor)}>
@@ -1393,7 +1432,7 @@ function BookDetailsPanel({
             <DetailMetadataRow title={t.physicalDetails} values={details?.physicalDescriptions ?? []} />
             <DetailMetadataRow title={t.languages} values={displayBook.languages.map((language) => getBookLanguageLabel(language, uiLanguage))} />
             <DetailMetadataRow title={t.publisher} values={publicationLine ? [publicationLine] : []} />
-            <DetailMetadataRow title={t.series} values={details?.series ?? []} />
+            <SeriesMetadataRow title={t.series} values={details?.series ?? []} onSearchSeries={onSearchSeries} />
             <DetailMetadataRow title={t.classification} values={details?.classifications ?? []} />
             <DetailMetadataRow title={t.subjects} values={displayBook.subjects} />
             <DetailMetadataRow title={t.additionalInformation} values={displayBook.authors} />
@@ -1430,6 +1469,23 @@ function DetailMetadataRow({ title, values }: { title: string; values: string[] 
       <dd>
         {values.map((value, index) => (
           <span key={`${value}-${index}`}>{value}</span>
+        ))}
+      </dd>
+    </div>
+  )
+}
+
+function SeriesMetadataRow({ onSearchSeries, title, values }: { onSearchSeries: (series: string) => void; title: string; values: string[] }) {
+  if (!values.length) return null
+
+  return (
+    <div className="detail-metadata-row">
+      <dt>{title}</dt>
+      <dd>
+        {values.map((value, index) => (
+          <button className="metadata-link" key={`${value}-${index}`} type="button" onClick={() => onSearchSeries(value)}>
+            {value}
+          </button>
         ))}
       </dd>
     </div>
