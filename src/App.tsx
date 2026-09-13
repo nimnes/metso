@@ -1320,7 +1320,7 @@ function BookDetailsPanel({
       return
     }
 
-    const timeoutId = window.setTimeout(() => setShowLoadingIndicator(true), 300)
+    const timeoutId = window.setTimeout(() => setShowLoadingIndicator(true), 650)
     return () => window.clearTimeout(timeoutId)
   }, [detailState.loading])
 
@@ -1417,14 +1417,17 @@ function BookDetailsPanel({
           {detailState.error ? <p className="detail-error">{translateError(detailState.error, uiLanguage)}</p> : null}
 
           <DetailSection title={t.description}>
-            {visibleDescription ? <p>{visibleDescription}</p> : null}
-            {!visibleDescription && detailState.loading && showLoadingIndicator ? (
-              <div className="detail-loading" role="status">
-                <span className="loading-spinner" aria-hidden="true" />
-                <span>{t.loadingDetails}</span>
-              </div>
-            ) : null}
-            {!visibleDescription && !detailState.loading ? <p>{t.noDescription}</p> : null}
+            <div className="description-body" aria-busy={!visibleDescription && detailState.loading}>
+              {visibleDescription ? <p>{visibleDescription}</p> : null}
+              {!visibleDescription && detailState.loading && showLoadingIndicator ? (
+                <div className="description-skeleton" role="status" aria-label={t.loadingDetails}>
+                  <span />
+                  <span />
+                  <span />
+                </div>
+              ) : null}
+              {!visibleDescription && !detailState.loading ? <p>{t.noDescription}</p> : null}
+            </div>
           </DetailSection>
 
           <dl className="piki-metadata">

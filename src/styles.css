@@ -1183,25 +1183,6 @@ a.rating:hover strong {
   color: #8a3c18;
 }
 
-.detail-loading {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 26px;
-  color: #596265;
-  font-size: 0.96rem;
-  font-weight: 650;
-}
-
-.loading-spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid #cfd9d5;
-  border-top-color: #12664f;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
 .detail-section {
   display: grid;
   gap: 8px;
@@ -1212,6 +1193,34 @@ a.rating:hover strong {
   color: #303638;
   font-size: 0.9rem;
   font-weight: 800;
+}
+
+.description-body {
+  min-height: 4.6rem;
+}
+
+.description-skeleton {
+  display: grid;
+  gap: 10px;
+  max-width: 760px;
+  padding-top: 3px;
+}
+
+.description-skeleton span {
+  height: 0.95rem;
+  overflow: hidden;
+  background: linear-gradient(90deg, #eef4f1 0%, #f8faf7 45%, #eef4f1 90%);
+  background-size: 220% 100%;
+  border-radius: 999px;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+.description-skeleton span:nth-child(2) {
+  width: 92%;
+}
+
+.description-skeleton span:nth-child(3) {
+  width: 64%;
 }
 
 .piki-metadata {
@@ -1324,14 +1333,18 @@ a.rating:hover strong {
   margin-top: 0;
 }
 
-@keyframes spin {
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 120% 0;
+  }
+
   to {
-    transform: rotate(360deg);
+    background-position: -120% 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .loading-spinner {
+  .description-skeleton span {
     animation: none;
   }
 }
