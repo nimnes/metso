@@ -1,5 +1,6 @@
 import { FEATURED_LANGUAGE_CODES, OTHER_LANGUAGE_FILTER_VALUE, TAMPERE_CITY_CODE, TAMPERE_HOLDING_LABELS } from '../data/tampereBranches'
 import { GENRE_OPTIONS } from '../data/genreOptions'
+import type { GenreFilter } from '../data/genreOptions'
 import { TOP_LOANED_BOOK_IDENTIFIER_SET } from '../data/topLoanedBooks'
 import type { Book, BookDetails, BookRating, BookSearchFilters, LibraryPresence } from '../types'
 import { removeDuplicateRussianTransliteration } from './descriptionCleanup'
@@ -10,7 +11,7 @@ const PIKI_BASE = 'https://piki.finna.fi'
 export const FINNA_PAGE_SIZE = 20
 const STRICT_LANGUAGE_API_PAGE_SIZE = 100
 const CHILDREN_GENRE_VALUE = 'children'
-const CHILDREN_GENRE_FILTERS = GENRE_OPTIONS.find((option) => option.value === CHILDREN_GENRE_VALUE)?.finnaValues ?? []
+const CHILDREN_GENRE_FILTERS = getGenreFacetValues(CHILDREN_GENRE_VALUE)
 
 type FinnaTranslatedField = {
   value: string
@@ -170,9 +171,9 @@ async function fetchFinnaSearchVariant(filters: BookSearchFilters, page: number,
   }
 
   filters.genreValues
-    .flatMap((genreValue) => GENRE_OPTIONS.find((option) => option.value === genreValue)?.finnaValues ?? [])
-    .forEach((value) => {
-      params.append('filter[]', `~genre_facet:"${value}"`)
+    .flatMap(getGenreFilters)
+    .forEach((filter) => {
+      params.append('filter[]', `~${filter.field}:"${filter.value}"`)
     })
 
   if (filters.genreValues.length > 0 && !filters.genreValues.includes(CHILDREN_GENRE_VALUE)) {
@@ -192,6 +193,16 @@ async function fetchFinnaSearchVariant(filters: BookSearchFilters, page: number,
   }
 
   return data
+}
+
+function getGenreFilters(genreValue: string): GenreFilter[] {
+  return GENRE_OPTIONS.find((option) => option.value === genreValue)?.finnaFilters ?? []
+}
+
+function getGenreFacetValues(genreValue: string): string[] {
+  return getGenreFilters(genreValue)
+    .filter((filter) => filter.field === 'genre_facet')
+    .map((filter) => filter.value)
 }
 
 function uniqueRecordsById(records: FinnaRecord[]): FinnaRecord[] {
