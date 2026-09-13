@@ -27,14 +27,21 @@ type FinnaRecordResponse = {
 const FINNA_API_BASE = 'https://api.finna.fi/v1'
 const PIKI_BASE = 'https://piki.finna.fi'
 
-export async function onRequestGet({ request }: PagesContext): Promise<Response> {
+export async function onRequest({ request }: PagesContext): Promise<Response> {
+  if (request.method !== 'GET' && request.method !== 'HEAD') {
+    return new Response('Method not allowed', {
+      status: 405,
+      headers: { Allow: 'GET, HEAD' },
+    })
+  }
+
   const requestUrl = new URL(request.url)
   const id = normalizeId(requestUrl.searchParams.get('id') ?? undefined)
   if (!id) return new Response('Book id is required', { status: 400 })
 
   try {
     const record = await getFinnaRecord(id)
-    const cover = await getCoverResponse(record)
+    const cover = await getCoverResponse(record, request.method !== 'HEAD')
     if (cover) return cover
   } catch {
     // Fall through to the app icon.
@@ -61,7 +68,7 @@ async function getFinnaRecord(id: string): Promise<FinnaRecord> {
   return record
 }
 
-async function getCoverResponse(record: FinnaRecord): Promise<Response | undefined> {
+async function getCoverResponse(record: FinnaRecord, includeBody: boolean): Promise<Response | undefined> {
   const isbns = normalizeIsbns([...(record.isbns ?? []), record.cleanIsbn].filter(Boolean) as string[])
   const candidates = unique([
     ...(record.images ?? []).map(normalizePikiUrl),
@@ -76,12 +83,15 @@ async function getCoverResponse(record: FinnaRecord): Promise<Response | undefin
     const contentType = response.headers.get('content-type') ?? ''
     if (!contentType.startsWith('image/') || contentType.includes('image/gif')) continue
 
-    return new Response(response.body, {
-      headers: {
-        'Cache-Control': 'public, max-age=604800',
-        'Content-Type': contentType,
-      },
+    const headers = new Headers({
+      'Cache-Control': 'public, max-age=604800',
+      'Content-Type': contentType,
+      'X-Content-Type-Options': 'nosniff',
     })
+    const contentLength = response.headers.get('content-length')
+    if (contentLength) headers.set('Content-Length', contentLength)
+
+    return new Response(includeBody ? response.body : null, { headers })
   }
 
   return undefined
