@@ -70,6 +70,11 @@ export const GENRE_OPTIONS: GenreOption[] = [
     finnaFilters: [genre('Tieteiskirjallisuus'), genre('Science fiction')],
   },
   {
+    value: 'cyberpunk',
+    labels: { en: 'Cyberpunk', ru: 'Киберпанк' },
+    finnaFilters: [genre('Kyberpunk'), topic('kyberpunk')],
+  },
+  {
     value: 'horror',
     labels: { en: 'Horror', ru: 'Ужасы' },
     finnaFilters: [genre('Kauhukirjallisuus')],
