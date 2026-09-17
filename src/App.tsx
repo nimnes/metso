@@ -23,7 +23,7 @@ import { enrichBookWithHardcover, getHardcoverDescription } from './api/hardcove
 import { enrichBookWithMostRecommended } from './api/mostRecommendedBooks'
 import { enrichBookWithOpenLibrary, getOpenLibraryDescription } from './api/openLibrary'
 import { getPikiDescription } from './api/pikiDescription'
-import { getBookShareData, getTelegramShareUrl } from './bookShare'
+import { getBookShareData } from './bookShare'
 import { GENRE_OPTIONS } from './data/genreOptions'
 import { LANGUAGE_OPTIONS, TAMPERE_BRANCHES } from './data/tampereBranches'
 import { getStoredUiLanguage, translations, UI_LANGUAGE_STORAGE_KEY, UI_LANGUAGES } from './i18n'
@@ -1411,10 +1411,6 @@ function BookDetailsPanel({
               {shareCopied ? t.shareCopied : t.shareBook}
               <Share2 size={16} aria-hidden="true" />
             </button>
-            <a className="piki-link details-link share-link" href={getTelegramShareUrl(window.location.origin, displayBook.finnaId)} target="_blank" rel="noreferrer">
-              {t.shareInTelegram}
-              <Share2 size={16} aria-hidden="true" />
-            </a>
           </div>
           {hasRatings(displayBook.ratings) ? (
             <div className="mobile-detail-rating">
