@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { afterEach, test } from 'node:test'
 import { renderBookShareResponse } from '../functions/book/[id].ts'
 import { getBookCoverResponse } from '../functions/api/book-cover.ts'
+import { getBookShareData } from '../src/bookShare.ts'
 
 const originalFetch = globalThis.fetch
 afterEach(() => { globalThis.fetch = originalFetch })
@@ -10,6 +11,12 @@ const context = {
   request: new Request('https://metso.example/share/piki.3114615?v=share5'),
   params: { id: 'piki.3114615' },
 }
+
+test('native sharing supplies one URL item, without text or a competing PIKI link', () => {
+  assert.deepEqual(getBookShareData('https://metso.example', 'piki.5823576'), {
+    url: 'https://metso.example/share/piki.5823576?v=share6',
+  })
+})
 
 test('book preview exposes title, cover and both destinations without JavaScript', async () => {
   globalThis.fetch = async () => Response.json({ status: 'OK', records: [{

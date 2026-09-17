@@ -12,7 +12,7 @@ The goal is simple: make it easier to discover interesting books in nearby Tampe
 - Browse paginated book results with covers, authors, publication years, ratings, and Tampere library presence.
 - Open a book details view with description, publication metadata, subjects, ISBN, and Tampere libraries.
 - Open public rating/review pages from supported rating badges.
-- Share a message with the book title, Metso preview link, and official PIKI link.
+- Share a single Metso book URL with title and cover metadata for messaging previews.
 - Open the official PIKI page for login, reservations, and live library actions.
 - Switch the interface between English and Russian.
 - Install the app to a phone home screen with app icons and a mobile-friendly detail view.

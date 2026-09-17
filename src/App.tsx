@@ -23,6 +23,7 @@ import { enrichBookWithHardcover, getHardcoverDescription } from './api/hardcove
 import { enrichBookWithMostRecommended } from './api/mostRecommendedBooks'
 import { enrichBookWithOpenLibrary, getOpenLibraryDescription } from './api/openLibrary'
 import { getPikiDescription } from './api/pikiDescription'
+import { getBookShareData } from './bookShare'
 import { GENRE_OPTIONS } from './data/genreOptions'
 import { LANGUAGE_OPTIONS, TAMPERE_BRANCHES } from './data/tampereBranches'
 import { getStoredUiLanguage, translations, UI_LANGUAGE_STORAGE_KEY, UI_LANGUAGES } from './i18n'
@@ -62,7 +63,6 @@ const FILTER_STORAGE_KEY = 'metso-search-filters'
 const FILTER_SECTION_STORAGE_KEY = 'metso-filter-sections'
 const WISHLIST_STORAGE_KEY = 'metso-wishlist'
 const MOBILE_FINNA_PAGE_SIZE = 10
-const SHARE_PREVIEW_VERSION = 'share5'
 const initialFilterSections: Record<FilterSectionKey, boolean> = {
   language: true,
   genre: true,
@@ -713,10 +713,6 @@ function getBookIdFromLocation(): string | undefined {
   return value || undefined
 }
 
-function getBookShareUrl(book: Book): string {
-  return `${window.location.origin}/share/${encodeURIComponent(book.finnaId)}?v=${SHARE_PREVIEW_VERSION}`
-}
-
 function getGoodreadsUrl(isbn: string): string {
   return `https://www.goodreads.com/book/isbn/${encodeURIComponent(isbn)}`
 }
@@ -1364,13 +1360,8 @@ function BookDetailsPanel({
   }, [detailState.loading])
 
   async function shareBook() {
-    const shareUrl = getBookShareUrl(displayBook)
-    const heading = primaryAuthor ? `${displayBook.title} - ${primaryAuthor}` : displayBook.title
-    const shareText = `${heading}\n\nMetso: ${shareUrl}\nPIKI: ${displayBook.pikiUrl}`
-    const shareData = {
-      title: displayBook.title,
-      text: shareText,
-    }
+    const shareData = getBookShareData(window.location.origin, displayBook.finnaId)
+    const shareUrl = shareData.url
 
     try {
       if (navigator.share && navigator.canShare?.(shareData) !== false) {
@@ -1382,7 +1373,7 @@ function BookDetailsPanel({
     }
 
     try {
-      await navigator.clipboard.writeText(shareText)
+      await navigator.clipboard.writeText(shareUrl)
       setShareCopied(true)
       window.setTimeout(() => setShareCopied(false), 1800)
     } catch {
