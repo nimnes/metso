@@ -62,7 +62,7 @@ const FILTER_STORAGE_KEY = 'metso-search-filters'
 const FILTER_SECTION_STORAGE_KEY = 'metso-filter-sections'
 const WISHLIST_STORAGE_KEY = 'metso-wishlist'
 const MOBILE_FINNA_PAGE_SIZE = 10
-const SHARE_PREVIEW_VERSION = 'share4'
+const SHARE_PREVIEW_VERSION = 'share5'
 const initialFilterSections: Record<FilterSectionKey, boolean> = {
   language: true,
   genre: true,
@@ -1365,11 +1365,11 @@ function BookDetailsPanel({
 
   async function shareBook() {
     const shareUrl = getBookShareUrl(displayBook)
-    const shareText = primaryAuthor ? `${displayBook.title} - ${primaryAuthor}` : displayBook.title
+    const heading = primaryAuthor ? `${displayBook.title} - ${primaryAuthor}` : displayBook.title
+    const shareText = `${heading}\n\nMetso: ${shareUrl}\nPIKI: ${displayBook.pikiUrl}`
     const shareData = {
       title: displayBook.title,
       text: shareText,
-      url: shareUrl,
     }
 
     try {
@@ -1382,7 +1382,7 @@ function BookDetailsPanel({
     }
 
     try {
-      await navigator.clipboard.writeText(shareUrl)
+      await navigator.clipboard.writeText(shareText)
       setShareCopied(true)
       window.setTimeout(() => setShareCopied(false), 1800)
     } catch {

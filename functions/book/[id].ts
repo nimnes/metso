@@ -122,15 +122,11 @@ export async function renderBookShareResponse({ request, params }: PagesContext)
     const imageUrl = preview.imageUrl ?? getShareImageUrl(record, requestUrl.origin, requestUrl.searchParams.get('v'))
     return htmlResponse(renderSharePage({ appUrl, imageUrl, record, shareUrl }))
   } catch {
-    const fallbackRecord = getPreviewRecord(id, preview)
-    return htmlResponse(
-      renderSharePage({
-        appUrl,
-        imageUrl: preview.imageUrl ?? `${requestUrl.origin}/metso-icon-512.png`,
-        record: fallbackRecord,
-        shareUrl,
-      }),
-    )
+    // A successful generic page can become a messaging app's cached book preview.
+    return new Response('Book preview temporarily unavailable. Please try again.', {
+      status: 503,
+      headers: { 'Cache-Control': 'no-store', 'Retry-After': '30' },
+    })
   }
 }
 
@@ -342,7 +338,7 @@ function transliterateWord(word: string): string {
   const capitalized = /^[A-ZŠŽČÂÛËÄ]/.test(word)
   let value = word.toLocaleLowerCase()
   const commonWord = COMMON_WORDS[value]
-  if (commonWord) return capitalized ? capitalizeReplacement(commonWord) : commonWord
+  if (commonWord) return capitalized ? commonWord.charAt(0).toLocaleUpperCase() + commonWord.slice(1) : commonWord
 
   value = value.replace(/([bcdfghjklmnpqrstvwxzšžč])j([eё])/g, '$1ь$2')
   for (const [pattern, replacement] of MULTI_LETTER_REPLACEMENTS) {

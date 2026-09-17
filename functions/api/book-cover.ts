@@ -39,19 +39,22 @@ export async function onRequest({ request }: PagesContext): Promise<Response> {
   const id = normalizeId(requestUrl.searchParams.get('id') ?? undefined)
   if (!id) return new Response('Book id is required', { status: 400 })
 
-  return getBookCoverResponse(id, requestUrl.origin, request.method !== 'HEAD')
+  return getBookCoverResponse(id, request.method !== 'HEAD')
 }
 
-export async function getBookCoverResponse(id: string, origin: string, includeBody: boolean): Promise<Response> {
+export async function getBookCoverResponse(id: string, includeBody: boolean): Promise<Response> {
   try {
     const record = await getFinnaRecord(id)
     const cover = await getCoverResponse(record, includeBody)
     if (cover) return cover
   } catch {
-    // Fall through to the app icon.
+    // Never let a temporary lookup failure become a cached app-icon preview.
   }
 
-  return Response.redirect(`${origin}/metso-icon-512.png`, 302)
+  return new Response(includeBody ? 'Book cover temporarily unavailable' : null, {
+    status: 503,
+    headers: { 'Cache-Control': 'no-store', 'Retry-After': '30' },
+  })
 }
 
 async function getFinnaRecord(id: string): Promise<FinnaRecord> {

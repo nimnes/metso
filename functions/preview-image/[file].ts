@@ -15,12 +15,11 @@ export async function onRequest({ request, params }: PagesContext): Promise<Resp
     })
   }
 
-  const requestUrl = new URL(request.url)
   const filename = Array.isArray(params.file) ? params.file[0] : params.file
   const id = normalizePreviewImageId(filename)
   if (!id) return new Response('Book id is required', { status: 400 })
 
-  return getBookCoverResponse(id, requestUrl.origin, request.method !== 'HEAD')
+  return getBookCoverResponse(id, request.method !== 'HEAD')
 }
 
 function normalizePreviewImageId(filename?: string): string | undefined {
