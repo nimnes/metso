@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { afterEach, test } from 'node:test'
 import { renderBookShareResponse } from '../functions/book/[id].ts'
 import { getBookCoverResponse } from '../functions/api/book-cover.ts'
-import { getBookShareData } from '../src/bookShare.ts'
+import { getBookShareData, getTelegramShareUrl } from '../src/bookShare.ts'
 
 const originalFetch = globalThis.fetch
 afterEach(() => { globalThis.fetch = originalFetch })
@@ -11,6 +11,13 @@ const context = {
   request: new Request('https://metso.example/share/piki.3114615?v=share5'),
   params: { id: 'piki.3114615' },
 }
+
+test('Telegram sharing opens the official composer with the complete book URL', () => {
+  const link = new URL(getTelegramShareUrl('https://metso.example', 'piki.5857794'))
+  assert.equal(link.origin + link.pathname, 'https://t.me/share/url')
+  assert.equal(link.searchParams.get('url'), getBookShareData('https://metso.example', 'piki.5857794').url)
+  assert.equal(link.searchParams.has('text'), false)
+})
 
 test('native sharing supplies one URL item, without text or a competing PIKI link', () => {
   assert.deepEqual(getBookShareData('https://metso.example', 'piki.5823576'), {
