@@ -92,10 +92,11 @@ async function getCoverResponse(record: FinnaRecord, includeBody: boolean): Prom
       'Content-Type': contentType,
       'X-Content-Type-Options': 'nosniff',
     })
-    const contentLength = response.headers.get('content-length')
-    if (contentLength) headers.set('Content-Length', contentLength)
 
-    return new Response(includeBody ? response.body : null, { headers })
+    const body = await response.arrayBuffer()
+    headers.set('Content-Length', String(body.byteLength))
+
+    return new Response(includeBody ? body : null, { headers })
   }
 
   return undefined

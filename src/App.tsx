@@ -62,7 +62,7 @@ const FILTER_STORAGE_KEY = 'metso-search-filters'
 const FILTER_SECTION_STORAGE_KEY = 'metso-filter-sections'
 const WISHLIST_STORAGE_KEY = 'metso-wishlist'
 const MOBILE_FINNA_PAGE_SIZE = 10
-const SHARE_PREVIEW_VERSION = 'share3'
+const SHARE_PREVIEW_VERSION = 'share4'
 const initialFilterSections: Record<FilterSectionKey, boolean> = {
   language: true,
   genre: true,
@@ -714,14 +714,7 @@ function getBookIdFromLocation(): string | undefined {
 }
 
 function getBookShareUrl(book: Book): string {
-  const params = new URLSearchParams()
-  params.set('v', SHARE_PREVIEW_VERSION)
-  params.set('t', book.title)
-  if (book.authors[0]) params.set('a', book.authors[0])
-  if (book.publicationYear) params.set('y', String(book.publicationYear))
-  if (book.coverUrl && /^https?:\/\//i.test(book.coverUrl)) params.set('img', book.coverUrl)
-
-  return `${window.location.origin}/share/${encodeURIComponent(book.finnaId)}?${params.toString()}`
+  return `${window.location.origin}/share/${encodeURIComponent(book.finnaId)}?v=${SHARE_PREVIEW_VERSION}`
 }
 
 function getGoodreadsUrl(isbn: string): string {

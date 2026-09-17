@@ -224,6 +224,7 @@ function renderSharePage({
     <meta name="twitter:title" content="${escapeHtml(title)}" />
     <meta name="twitter:description" content="${escapeHtml(description)}" />
     <meta name="twitter:image" content="${escapeHtml(imageUrl)}" />
+    <link rel="image_src" href="${escapeHtml(imageUrl)}" />
     <link rel="canonical" href="${escapeHtml(shareUrl)}" />
     <style>
       body {
