@@ -12,6 +12,7 @@ export type GenreOption = {
     ru: string
   }
   finnaFilters: GenreFilter[]
+  finnaSearchClause?: string
 }
 
 const genre = (value: string): GenreFilter => ({ field: 'genre_facet', value })
@@ -72,7 +73,8 @@ export const GENRE_OPTIONS: GenreOption[] = [
   {
     value: 'cyberpunk',
     labels: { en: 'Cyberpunk', ru: 'Киберпанк' },
-    finnaFilters: [genre('Kyberpunk'), topic('kyberpunk')],
+    finnaFilters: [],
+    finnaSearchClause: 'genre_facet:"Kyberpunk" OR topic_facet:"kyberpunk"',
   },
   {
     value: 'horror',

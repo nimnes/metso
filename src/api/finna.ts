@@ -148,7 +148,7 @@ async function fetchFinnaSearch(filters: BookSearchFilters, page: number, limit:
 
 async function fetchFinnaSearchVariant(filters: BookSearchFilters, page: number, limit: number, query: string): Promise<FinnaSearchResponse> {
   const params = new URLSearchParams()
-  params.set('lookfor', query || '*')
+  params.set('lookfor', buildSearchQuery(query, filters.genreValues))
   params.set('type', 'AllFields')
   params.set('sort', sortToFinna(filters.sort))
   params.set('limit', String(limit))
@@ -197,6 +197,18 @@ async function fetchFinnaSearchVariant(filters: BookSearchFilters, page: number,
 
 function getGenreFilters(genreValue: string): GenreFilter[] {
   return GENRE_OPTIONS.find((option) => option.value === genreValue)?.finnaFilters ?? []
+}
+
+function buildSearchQuery(query: string, genreValues: string[]): string {
+  const genreClauses = genreValues
+    .map((genreValue) => GENRE_OPTIONS.find((option) => option.value === genreValue)?.finnaSearchClause)
+    .filter(Boolean)
+    .map((clause) => `(${clause})`)
+
+  if (!genreClauses.length) return query || '*'
+
+  const genreQuery = genreClauses.join(' AND ')
+  return query ? `(${query}) AND ${genreQuery}` : genreQuery
 }
 
 function getGenreFacetValues(genreValue: string): string[] {
