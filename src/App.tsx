@@ -1112,12 +1112,16 @@ function MobileFilterDropdown({ title, summary, children }: { title: string; sum
   const detailsRef = useRef<HTMLDetailsElement>(null)
 
   useEffect(() => {
-    function closeOutside(event: PointerEvent) {
+    function closeOutside(event: Event) {
       const details = detailsRef.current
       if (details && event.target instanceof Node && !details.contains(event.target)) details.open = false
     }
     document.addEventListener('pointerdown', closeOutside)
-    return () => document.removeEventListener('pointerdown', closeOutside)
+    document.addEventListener('focusin', closeOutside)
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside)
+      document.removeEventListener('focusin', closeOutside)
+    }
   }, [])
 
   return (
@@ -1129,8 +1133,6 @@ function MobileFilterDropdown({ title, summary, children }: { title: string; sum
           detailsRef.current.open = false
           detailsRef.current.querySelector('summary')?.focus()
         }
-      }} onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false
       }}>
         <summary aria-label={`${title}: ${summary}`}><span>{summary}</span><ChevronDown size={16} aria-hidden="true" /></summary>
         <div className="mobile-filter-options" role="group" aria-label={title}>{children}</div>
