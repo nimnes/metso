@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Search,
   Share2,
+  SlidersHorizontal,
   X,
 } from 'lucide-react'
 import { applyCachedBookEnrichment, hasCheckedRatingSource, rememberBookEnrichment } from './api/bookEnrichmentCache'
@@ -83,6 +84,7 @@ function App() {
   const [wishlistBooks, setWishlistBooks] = useState<Book[]>(getStoredWishlist)
   const [showWishlist, setShowWishlist] = useState(false)
   const [showMobileScrollTop, setShowMobileScrollTop] = useState(false)
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const resultsTopRef = useRef<HTMLDivElement | null>(null)
   const bookGridRef = useRef<HTMLElement | null>(null)
   const mobileLoadMoreRef = useRef<HTMLDivElement | null>(null)
@@ -516,6 +518,19 @@ function App() {
     value: branch.code,
     label: getLibraryDisplayName(branch.label, uiLanguage),
   }))
+  const activeFilterCount = filters.languageCodes.length + filters.genreValues.length + filters.branchCodes.length + Number(filters.sort !== initialFilters.sort)
+  const sortOptions = [
+    { value: 'relevance', label: t.sortRelevance },
+    { value: 'newest', label: t.sortNewest },
+    { value: 'oldest', label: t.sortOldest },
+    { value: 'title', label: t.sortTitle },
+    { value: 'rating', label: t.sortRating },
+  ]
+
+  function resetFilters() {
+    setCurrentPage(1)
+    setFilters((current) => ({ ...initialFilters, query: current.query }))
+  }
 
   return (
     <main className="shell">
@@ -540,7 +555,7 @@ function App() {
         </div>
 
         <form className="search-row" onSubmit={submitSearch}>
-          <label className="search-box">
+          <div className="search-box">
             <Search size={20} aria-hidden="true" />
             <input
               value={draftQuery}
@@ -551,7 +566,20 @@ function App() {
             <button className="barcode-button" type="button" onClick={() => setScannerOpen(true)} aria-label={t.scanBarcode} title={t.scanBarcode}>
               <Barcode size={22} aria-hidden="true" />
             </button>
-          </label>
+            {isMobileResults ? (
+              <button
+                className={`filter-toggle${activeFilterCount ? ' has-filters' : ''}`}
+                type="button"
+                aria-label={`${mobileFiltersOpen ? t.hideFilters : t.showFilters}${activeFilterCount ? `, ${t.activeFilters(activeFilterCount)}` : ''}`}
+                aria-expanded={mobileFiltersOpen}
+                aria-controls="search-filters"
+                onClick={() => setMobileFiltersOpen((current) => !current)}
+              >
+                <SlidersHorizontal size={21} aria-hidden="true" />
+                {activeFilterCount > 0 ? <span className="filter-count" aria-hidden="true">{activeFilterCount}</span> : null}
+              </button>
+            ) : null}
+          </div>
           <button type="submit">
             <Search size={18} aria-hidden="true" />
             {t.searchButton}
@@ -561,43 +589,76 @@ function App() {
       </section>
 
       <div className="results-layout">
-        <aside className="filter-sidebar" aria-label={t.filtersAriaLabel}>
-          <FilterPanelSection open={openFilterSections.language} title={t.languageFilter} onToggle={() => toggleFilterSection('language')}>
-            <FilterCheckboxList
-              allLabel={t.all}
-              options={languageOptions}
-              selectedValues={filters.languageCodes}
-              onToggleValue={(value, optionCount) => updateMultiFilter('languageCodes', value, optionCount)}
-            />
-          </FilterPanelSection>
+        <aside id="search-filters" className="filter-sidebar" aria-label={t.filtersAriaLabel} hidden={isMobileResults && !mobileFiltersOpen}>
+          {isMobileResults ? (
+            <>
+              <div className="mobile-filter-heading">
+                <strong>{t.filtersAriaLabel}</strong>
+                <button type="button" onClick={resetFilters} disabled={!activeFilterCount}>{t.resetFilters}</button>
+              </div>
+              <div className="mobile-filter-grid">
+                {([
+                  { title: t.languageFilter, options: languageOptions, values: filters.languageCodes, key: 'languageCodes', selectedLabel: t.selectedLanguages },
+                  { title: t.genreFilter, options: genreOptions, values: filters.genreValues, key: 'genreValues', selectedLabel: t.selectedGenres },
+                  { title: t.libraryFilter, options: libraryOptions, values: filters.branchCodes, key: 'branchCodes', selectedLabel: t.selectedLibraries },
+                ] as const).map(({ title, options, values, key, selectedLabel }) => (
+                  <MobileFilterDropdown key={key} title={title} summary={values.length === 0 ? t.all : values.length === 1 ? options.find((option) => option.value === values[0])?.label ?? selectedLabel(1) : selectedLabel(values.length)}>
+                    <FilterCheckboxList allLabel={t.all} options={options} selectedValues={values} onToggleValue={(value, optionCount) => updateMultiFilter(key, value, optionCount)} />
+                  </MobileFilterDropdown>
+                ))}
+                <label className="mobile-sort-field">
+                  <span>{t.sortFilter}</span>
+                  <span className="mobile-sort-control">
+                    <span className="mobile-sort-value" aria-hidden="true">{sortOptions.find((option) => option.value === filters.sort)?.label}</span>
+                    <ChevronDown size={16} aria-hidden="true" />
+                    <select className="sort-select" value={filters.sort} aria-label={t.sortFilter} onChange={(event) => updateFilter('sort', event.target.value as SortMode)}>
+                      {sortOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}
+                    </select>
+                  </span>
+                </label>
+              </div>
+              <button className="mobile-filters-done" type="button" onClick={() => setMobileFiltersOpen(false)}>{t.showBooks}</button>
+            </>
+          ) : (
+            <>
+                <FilterPanelSection open={openFilterSections.language} title={t.languageFilter} onToggle={() => toggleFilterSection('language')}>
+                  <FilterCheckboxList
+                    allLabel={t.all}
+                    options={languageOptions}
+                    selectedValues={filters.languageCodes}
+                    onToggleValue={(value, optionCount) => updateMultiFilter('languageCodes', value, optionCount)}
+                  />
+                </FilterPanelSection>
 
-          <FilterPanelSection open={openFilterSections.genre} title={t.genreFilter} onToggle={() => toggleFilterSection('genre')}>
-            <FilterCheckboxList
-              allLabel={t.all}
-              options={genreOptions}
-              selectedValues={filters.genreValues}
-              onToggleValue={(value, optionCount) => updateMultiFilter('genreValues', value, optionCount)}
-            />
-          </FilterPanelSection>
+                <FilterPanelSection open={openFilterSections.genre} title={t.genreFilter} onToggle={() => toggleFilterSection('genre')}>
+                  <FilterCheckboxList
+                    allLabel={t.all}
+                    options={genreOptions}
+                    selectedValues={filters.genreValues}
+                    onToggleValue={(value, optionCount) => updateMultiFilter('genreValues', value, optionCount)}
+                  />
+                </FilterPanelSection>
 
-          <FilterPanelSection open={openFilterSections.library} title={t.libraryFilter} onToggle={() => toggleFilterSection('library')}>
-            <FilterCheckboxList
-              allLabel={t.all}
-              options={libraryOptions}
-              selectedValues={filters.branchCodes}
-              onToggleValue={(value, optionCount) => updateMultiFilter('branchCodes', value, optionCount)}
-            />
-          </FilterPanelSection>
+                <FilterPanelSection open={openFilterSections.library} title={t.libraryFilter} onToggle={() => toggleFilterSection('library')}>
+                  <FilterCheckboxList
+                    allLabel={t.all}
+                    options={libraryOptions}
+                    selectedValues={filters.branchCodes}
+                    onToggleValue={(value, optionCount) => updateMultiFilter('branchCodes', value, optionCount)}
+                  />
+                </FilterPanelSection>
 
-          <FilterPanelSection open={openFilterSections.sort} title={t.sortFilter} onToggle={() => toggleFilterSection('sort')}>
-            <select className="sort-select" value={filters.sort} onChange={(event) => updateFilter('sort', event.target.value as SortMode)}>
-              <option value="relevance">{t.sortRelevance}</option>
-              <option value="newest">{t.sortNewest}</option>
-              <option value="oldest">{t.sortOldest}</option>
-              <option value="title">{t.sortTitle}</option>
-              <option value="rating">{t.sortRating}</option>
-            </select>
-          </FilterPanelSection>
+                <FilterPanelSection open={openFilterSections.sort} title={t.sortFilter} onToggle={() => toggleFilterSection('sort')}>
+                  <select className="sort-select" value={filters.sort} onChange={(event) => updateFilter('sort', event.target.value as SortMode)}>
+                    <option value="relevance">{t.sortRelevance}</option>
+                    <option value="newest">{t.sortNewest}</option>
+                    <option value="oldest">{t.sortOldest}</option>
+                    <option value="title">{t.sortTitle}</option>
+                    <option value="rating">{t.sortRating}</option>
+                  </select>
+                </FilterPanelSection>
+            </>
+          )}
         </aside>
 
         <div className="results-main">
@@ -1045,6 +1106,37 @@ function parseScannedBarcode(value: string): string | undefined {
 type MultiSelectOption = {
   value: string
   label: string
+}
+
+function MobileFilterDropdown({ title, summary, children }: { title: string; summary: string; children: ReactNode }) {
+  const detailsRef = useRef<HTMLDetailsElement>(null)
+
+  useEffect(() => {
+    function closeOutside(event: PointerEvent) {
+      const details = detailsRef.current
+      if (details && event.target instanceof Node && !details.contains(event.target)) details.open = false
+    }
+    document.addEventListener('pointerdown', closeOutside)
+    return () => document.removeEventListener('pointerdown', closeOutside)
+  }, [])
+
+  return (
+    <div className="mobile-filter-field">
+      <span>{title}</span>
+      <details className="mobile-filter-dropdown" ref={detailsRef} onKeyDown={(event) => {
+        if (event.key === 'Escape' && detailsRef.current?.open) {
+          event.preventDefault()
+          detailsRef.current.open = false
+          detailsRef.current.querySelector('summary')?.focus()
+        }
+      }} onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false
+      }}>
+        <summary aria-label={`${title}: ${summary}`}><span>{summary}</span><ChevronDown size={16} aria-hidden="true" /></summary>
+        <div className="mobile-filter-options" role="group" aria-label={title}>{children}</div>
+      </details>
+    </div>
+  )
 }
 
 function FilterPanelSection({
