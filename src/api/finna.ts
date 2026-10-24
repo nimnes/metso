@@ -170,12 +170,6 @@ async function fetchFinnaSearchVariant(filters: BookSearchFilters, page: number,
     })
   }
 
-  filters.genreValues
-    .flatMap(getGenreFilters)
-    .forEach((filter) => {
-      params.append('filter[]', `~${filter.field}:"${filter.value}"`)
-    })
-
   if (filters.genreValues.length > 0 && !filters.genreValues.includes(CHILDREN_GENRE_VALUE)) {
     CHILDREN_GENRE_FILTERS.forEach((value) => {
       params.append('filter[]', `-genre_facet:"${value}"`)
@@ -201,13 +195,20 @@ function getGenreFilters(genreValue: string): GenreFilter[] {
 
 function buildSearchQuery(query: string, genreValues: string[]): string {
   const genreClauses = genreValues
-    .map((genreValue) => GENRE_OPTIONS.find((option) => option.value === genreValue)?.finnaSearchClause)
+    .map((genreValue) => {
+      const option = GENRE_OPTIONS.find((option) => option.value === genreValue)
+      return option?.finnaSearchClause ?? option?.finnaFilters
+        .map((filter) => `${filter.field}:"${filter.value}"`)
+        .join(' OR ')
+    })
     .filter(Boolean)
     .map((clause) => `(${clause})`)
 
   if (!genreClauses.length) return query || '*'
 
-  const genreQuery = genreClauses.join(' AND ')
+  // Keep every selected genre in one OR group, including cross-field genres.
+  // Separate facet filters would intersect with this group (or each other).
+  const genreQuery = genreClauses.length === 1 ? genreClauses[0] : `(${genreClauses.join(' OR ')})`
   return query ? `(${query}) AND ${genreQuery}` : genreQuery
 }
 
