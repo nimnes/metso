@@ -214,6 +214,7 @@ export const GENRE_OPTIONS: GenreOption[] = [
   {
     value: 'expeditions-exploration',
     labels: { en: 'Expeditions & Exploration', ru: 'Экспедиции и исследования' },
-    finnaFilters: [topic('tutkimusmatkat'), topic('naparetket')],
+    finnaFilters: [],
+    finnaSearchClause: 'major_genre_str_mv:"nonfiction" AND (topic_facet:"tutkimusmatkat" OR topic_facet:"naparetket")',
   },
 ]
