@@ -211,4 +211,9 @@ export const GENRE_OPTIONS: GenreOption[] = [
     labels: { en: 'Travel', ru: 'Путешествия' },
     finnaFilters: [genre('Matkaoppaat')],
   },
+  {
+    value: 'expeditions-exploration',
+    labels: { en: 'Expeditions & Exploration', ru: 'Экспедиции и исследования' },
+    finnaFilters: [topic('tutkimusmatkat'), topic('naparetket')],
+  },
 ]
